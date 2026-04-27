@@ -79,7 +79,6 @@ static int print_help(void) {
 	    "  --tesseract       Capture, OCR, copy text to clipboard\n"
 	    "  --record          Toggle screen recording (re-run to stop)\n"
 	    "  --no-tray         Skip SNI tray during recording\n"
-	    "  --kill            SIGINT all grabit processes for this user\n"
 	    "  -e, --edit        Open the captured file in an editor first\n"
 	    "  --silent          Suppress notifications and sound\n"
 	    "  -d                Enable debug logging to stderr\n"
@@ -434,11 +433,6 @@ static int run_record(struct config *cfg, const struct args *a) {
 	return 1;
 }
 
-static int run_kill(void) {
-	log_error("--kill not yet implemented.");
-	return 1;
-}
-
 static int run(const struct args *a) {
 	struct config cfg;
 	if (config_load(&cfg) != 0) return 1;
@@ -459,7 +453,6 @@ static int run(const struct args *a) {
 	case ACTION_OUTPUT: rc = run_output(&cfg, a); break;
 	case ACTION_OCR:    rc = run_ocr(&cfg, a);    break;
 	case ACTION_RECORD: rc = run_record(&cfg, a); break;
-	case ACTION_KILL:   rc = run_kill();          break;
 	default:
 		log_error("no action specified — try -u, -c, -o, --record, or --tesseract");
 		log_info("(or set a default with: grabit set DEFAULT_OPTION upload)");

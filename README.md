@@ -42,7 +42,6 @@ make apply-headers
 - ocr (`--tesseract`) via libtesseract
 - hyprland ipc for `%w` / `%t` filename tokens
 - sni tray (`--no-tray`)
-- `--kill`
 
 ## license
 

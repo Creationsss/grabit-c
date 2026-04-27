@@ -13,7 +13,6 @@ enum action {
 	ACTION_OUTPUT,
 	ACTION_OCR,
 	ACTION_RECORD,
-	ACTION_KILL,
 };
 
 struct args {

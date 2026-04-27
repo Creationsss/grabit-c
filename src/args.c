@@ -37,7 +37,6 @@ int args_parse(int argc, char **argv, struct args *out) {
 		    strcmp(arg, "--output") == 0)         { if (set_action(out, ACTION_OUTPUT, arg) != 0) return -1; continue; }
 		if (strcmp(arg, "--tesseract") == 0)      { if (set_action(out, ACTION_OCR,    arg) != 0) return -1; continue; }
 		if (strcmp(arg, "--record") == 0)         { if (set_action(out, ACTION_RECORD, arg) != 0) return -1; continue; }
-		if (strcmp(arg, "--kill") == 0)           { if (set_action(out, ACTION_KILL,   arg) != 0) return -1; continue; }
 
 		if (strcmp(arg, "-e") == 0 ||
 		    strcmp(arg, "--edit") == 0)           { out->edit = true; continue; }
