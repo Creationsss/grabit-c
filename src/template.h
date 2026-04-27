@@ -7,7 +7,6 @@
 #include <stddef.h>
 
 struct template_ctx {
-	const char *output_name;
 	const char *window_class;
 	const char *window_title;
 };

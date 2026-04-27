@@ -16,6 +16,7 @@
 #include "capture/png.h"
 #include "clipboard/clipboard.h"
 #include "config.h"
+#include "hyprland.h"
 #include "log.h"
 #include "mime.h"
 #include "notify/notify.h"
@@ -126,7 +127,15 @@ static char *build_capture_path(const struct args *a, struct config *cfg,
 		tpl = template_for_preset(preset);
 	}
 
-	char *raw = template_expand(tpl, NULL);
+	char *win_class = NULL, *win_title = NULL;
+	(void)grabit_hyprland_active_window(&win_class, &win_title);
+	struct template_ctx ctx = {
+		.window_class = win_class,
+		.window_title = win_title,
+	};
+	char *raw = template_expand(tpl, &ctx);
+	free(win_class);
+	free(win_title);
 	if (!raw) {
 		log_error("template expansion failed");
 		return NULL;

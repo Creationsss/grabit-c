@@ -40,7 +40,6 @@ make apply-headers
 
 - recording (`--record`) via wlr-screencopy + libav
 - ocr (`--tesseract`) via libtesseract
-- hyprland ipc for `%w` / `%t` filename tokens
 - sni tray (`--no-tray`)
 
 ## license

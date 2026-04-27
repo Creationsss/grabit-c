@@ -109,25 +109,18 @@ static int validate_in_place(struct config *c) {
 		struct json_object *v = json_object_iter_peek_value(&it);
 		bool drop = false;
 
-		if (strcmp(k, "FILENAME_CMD") == 0) {
-			log_warn("FILENAME_CMD is no longer supported (was a shell-injection hole).");
-			log_warn("  migration: hyprctl ... .class -> %%w, date +%%s -> %%s");
-			log_warn("  see template_dsl.md; set FILENAME_TEMPLATE instead.");
+		const struct schema_entry *e = schema_find(k);
+		if (!e) {
+			log_warn("dropping unknown config key: %s", k);
 			drop = true;
-		} else {
-			const struct schema_entry *e = schema_find(k);
-			if (!e) {
-				log_warn("dropping unknown config key: %s", k);
-				drop = true;
-			} else if (json_object_get_type(v) != json_type_string) {
-				log_warn("dropping %s: expected string, got %s", k,
-				         json_type_to_name(json_object_get_type(v)));
-				drop = true;
-			} else if (!schema_value_ok(e, json_object_get_string(v))) {
-				log_warn("dropping %s: value %s does not match schema", k,
-				         json_object_get_string(v));
-				drop = true;
-			}
+		} else if (json_object_get_type(v) != json_type_string) {
+			log_warn("dropping %s: expected string, got %s", k,
+			         json_type_to_name(json_object_get_type(v)));
+			drop = true;
+		} else if (!schema_value_ok(e, json_object_get_string(v))) {
+			log_warn("dropping %s: value %s does not match schema", k,
+			         json_object_get_string(v));
+			drop = true;
 		}
 
 		if (drop) {

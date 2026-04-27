@@ -140,9 +140,6 @@ char *template_expand(const char *tpl, const struct template_ctx *ctx) {
 		case 't':
 			if (ctx && ctx->window_title && grabit_buf_puts(&b, ctx->window_title) != 0) goto oom;
 			break;
-		case 'o':
-			if (ctx && ctx->output_name && grabit_buf_puts(&b, ctx->output_name) != 0) goto oom;
-			break;
 		default:
 			if (grabit_buf_putc(&b, '%') != 0) goto oom;
 			if (grabit_buf_putc(&b, kind) != 0) goto oom;
