@@ -21,17 +21,18 @@
 struct service {
 	const char *name;
 	const char *url;
-	const char *auth_header;
+	const char *auth_name;
 	const char *json_path;
+	bool        auth_in_form;
 };
 
 static const struct service SERVICES[] = {
-	{ "zipline",    NULL,                                 "authorization", "files[0].url" },
-	{ "nest",       "https://nest.rip/api/files/upload",  "Authorization", "fileURL"      },
-	{ "fakecrime",  "https://upload.fakecrime.bio",       "Authorization", "url"          },
-	{ "ez",         "https://api.e-z.host/files",         "key",           "imageUrl"     },
-	{ "guns",       "https://guns.lol/api/upload",        "key",           "link"         },
-	{ "pixelvault", "https://pixelvault.co/api/upload",   "Authorization", "resource"     },
+	{ "zipline",    NULL,                                 "authorization", "files[0].url", false },
+	{ "nest",       "https://nest.rip/api/files/upload",  "Authorization", "fileURL",      false },
+	{ "fakecrime",  "https://upload.fakecrime.bio",       "Secret",        "url|data.url", false },
+	{ "ez",         "https://api.e-z.host/files",         "key",           "imageUrl",     false },
+	{ "guns",       "https://guns.lol/api/upload",        "key",           "link",         true  },
+	{ "pixelvault", "https://pixelvault.co/api/upload",   "Authorization", "resource",     false },
 };
 static const size_t N_SERVICES = sizeof SERVICES / sizeof SERVICES[0];
 
@@ -89,13 +90,30 @@ static struct json_object *walk_path(struct json_object *root, const char *path)
 	return cur;
 }
 
-static char *extract_url(struct json_object *root, const char *path) {
+static char *extract_url_one(struct json_object *root, const char *path) {
 	struct json_object *v = walk_path(root, path);
 	if (!v) return NULL;
 	if (json_object_get_type(v) != json_type_string) return NULL;
 	const char *s = json_object_get_string(v);
 	if (!s || !s[0]) return NULL;
 	return strdup(s);
+}
+
+static char *extract_url(struct json_object *root, const char *paths) {
+	const char *p = paths;
+	while (*p) {
+		const char *bar = strchr(p, '|');
+		size_t len = bar ? (size_t)(bar - p) : strlen(p);
+		char one[256];
+		if (len >= sizeof one) return NULL;
+		memcpy(one, p, len);
+		one[len] = '\0';
+		char *got = extract_url_one(root, one);
+		if (got) return got;
+		if (!bar) break;
+		p = bar + 1;
+	}
+	return NULL;
 }
 
 static struct curl_slist *append_header(struct curl_slist *list,
@@ -121,6 +139,12 @@ static void log_http_failure(long code, const char *body) {
 		break;
 	case 413:
 		log_error("upload failed (413): file too large — try compressing");
+		break;
+	case 422:
+		log_error("upload failed (422): file rejected — invalid format or validation failure");
+		break;
+	case 429:
+		log_error("upload failed (429): rate limited — wait a bit before retrying");
 		break;
 	case 500:
 		log_error("upload failed (500): server error — try again later");
@@ -200,7 +224,13 @@ int upload_perform(const char *service_name, const char *file_path,
 
 	struct curl_slist *headers = NULL;
 	bool hdr_oom = false;
-	headers = append_header(headers, svc->auth_header, auth, &hdr_oom);
+	if (svc->auth_in_form) {
+		curl_mimepart *ap = curl_mime_addpart(mime);
+		curl_mime_name(ap, svc->auth_name);
+		curl_mime_data(ap, auth, CURL_ZERO_TERMINATED);
+	} else {
+		headers = append_header(headers, svc->auth_name, auth, &hdr_oom);
+	}
 
 	if (strcmp(svc->name, "zipline") == 0 && cfg) {
 		const char *prefix = "services.zipline.headers.";

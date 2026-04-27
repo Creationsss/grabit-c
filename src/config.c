@@ -35,6 +35,41 @@ static const char *KNOWN_SERVICES[] = {
 static const char *VALS_default_action[] = { "upload", "copy", "save", NULL };
 static const char *VALS_filename_preset[] = { "date", "random", "uuid", "timestamp", NULL };
 
+static const char *VALS_zl_format[]    = { "random", "date", "uuid", "name", "gfycat", NULL };
+static const char *VALS_zl_compress[]  = { "jpg", "png", "webp", "jxl", NULL };
+static const char *VALS_zl_true_only[] = { "true", NULL };
+
+enum zl_kind { ZL_FREE, ZL_ENUM, ZL_INT, ZL_INT_PCT };
+
+struct zl_hdr {
+	const char  *name;
+	enum zl_kind kind;
+	const char **allowed;
+};
+
+static const struct zl_hdr ZIPLINE_HEADERS[] = {
+	{ "x-zipline-deletes-at",                  ZL_FREE,    NULL },
+	{ "x-zipline-format",                      ZL_ENUM,    VALS_zl_format },
+	{ "x-zipline-image-compression-percent",   ZL_INT_PCT, NULL },
+	{ "x-zipline-image-compression-type",      ZL_ENUM,    VALS_zl_compress },
+	{ "x-zipline-password",                    ZL_FREE,    NULL },
+	{ "x-zipline-max-views",                   ZL_INT,     NULL },
+	{ "x-zipline-no-json",                     ZL_ENUM,    VALS_zl_true_only },
+	{ "x-zipline-original-name",               ZL_ENUM,    VALS_zl_true_only },
+	{ "x-zipline-folder",                      ZL_FREE,    NULL },
+	{ "x-zipline-filename",                    ZL_FREE,    NULL },
+	{ "x-zipline-domain",                      ZL_FREE,    NULL },
+	{ "x-zipline-file-extension",              ZL_FREE,    NULL },
+};
+static const size_t ZIPLINE_HEADERS_N = sizeof ZIPLINE_HEADERS / sizeof ZIPLINE_HEADERS[0];
+
+static const struct zl_hdr *zl_find(const char *name) {
+	for (size_t i = 0; i < ZIPLINE_HEADERS_N; i++) {
+		if (strcmp(ZIPLINE_HEADERS[i].name, name) == 0) return &ZIPLINE_HEADERS[i];
+	}
+	return NULL;
+}
+
 static bool in_list(const char *needle, const char **list) {
 	for (size_t i = 0; list[i]; i++) {
 		if (strcmp(list[i], needle) == 0) return true;
@@ -368,6 +403,57 @@ int config_set(struct config *c, const char *key, const char *value) {
 		log_error("%s must be true or false", key);
 		return -1;
 	}
+
+	const char *zl_prefix = "services.zipline.headers.";
+	if (strncmp(key, zl_prefix, strlen(zl_prefix)) == 0) {
+		const char *hdr = key + strlen(zl_prefix);
+		const struct zl_hdr *spec = zl_find(hdr);
+		if (!spec) {
+			log_warn("unknown zipline header %s; forwarding as-is", hdr);
+		} else {
+			switch (spec->kind) {
+			case ZL_FREE:
+				break;
+			case ZL_ENUM:
+				if (!in_list(value, spec->allowed)) {
+					if (spec->allowed[0] && !spec->allowed[1]) {
+						log_error("%s must be \"%s\" (omit the header to disable)",
+						          hdr, spec->allowed[0]);
+					} else {
+						struct grabit_buf b = {0};
+						for (size_t i = 0; spec->allowed[i]; i++) {
+							if (i) grabit_buf_putc(&b, '|');
+							grabit_buf_puts(&b, spec->allowed[i]);
+						}
+						log_error("%s must be one of %s", hdr, b.data ? b.data : "(none)");
+						grabit_buf_free(&b);
+					}
+					return -1;
+				}
+				break;
+			case ZL_INT:
+			case ZL_INT_PCT: {
+				if (!*value) { log_error("%s must be an integer", hdr); return -1; }
+				char *end = NULL;
+				long n = strtol(value, &end, 10);
+				if (!end || *end != '\0') {
+					log_error("%s must be an integer", hdr);
+					return -1;
+				}
+				if (spec->kind == ZL_INT_PCT && (n < 0 || n > 100)) {
+					log_error("%s must be between 0 and 100", hdr);
+					return -1;
+				}
+				if (spec->kind == ZL_INT && n < 0) {
+					log_error("%s must be a non-negative integer", hdr);
+					return -1;
+				}
+				break;
+			}
+			}
+		}
+	}
+
 	if (kv_upsert(c, key, value) != 0) {
 		log_error("oom: config_set");
 		return -1;
