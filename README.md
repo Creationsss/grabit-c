@@ -24,6 +24,8 @@ make
 - cairo
 - libxkbcommon
 
+config parser (`tomlc99`) is vendored under `src/vendor/`.
+
 `basu` is preferred on non-systemd distros (void, alpine, artix, devuan, gentoo-openrc).
 
 ### targets

@@ -117,6 +117,7 @@ static int visit(const char *path, const struct stat *sb, int type, struct FTW *
 	(void)ftw;
 	if (type != FTW_F) return 0;
 	if (!is_source(path)) return 0;
+	if (strstr(path, "/vendor/")) return 0;
 	if (has_header(path)) return 0;
 
 	if (g_apply) {

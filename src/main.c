@@ -87,7 +87,7 @@ static int print_help(void) {
 	    "\n"
 	    "Config:\n"
 	    "  set <key> <val>   Write a config key (validated)\n"
-	    "  get [<key>]       Print one config key, or full config as JSON\n"
+	    "  get [<key>]       Print one config key, or every set key\n"
 	    "\n"
 	    "Misc:\n"
 	    "  --version         Print version and exit\n"
@@ -102,7 +102,7 @@ static int print_help(void) {
 }
 
 static char *resolve_save_dir(struct config *cfg) {
-	const char *d = config_get(cfg, "SAVE_DIR");
+	const char *d = config_get(cfg, "save_dir");
 	if (d && d[0]) {
 		char *r = strdup(d);
 		if (!r) log_error("oom: resolve_save_dir");
@@ -121,9 +121,9 @@ static char *resolve_save_dir(struct config *cfg) {
 static char *build_capture_path(const struct args *a, struct config *cfg,
                                 enum action eff, bool *is_temp) {
 	const char *tpl = a->filename_tpl;
-	if (!tpl) tpl = config_get(cfg, "FILENAME_TEMPLATE");
+	if (!tpl) tpl = config_get(cfg, "filename");
 	if (!tpl) {
-		const char *preset = config_get(cfg, "FILE_NAME_FORMAT");
+		const char *preset = config_get(cfg, "filename_preset");
 		tpl = template_for_preset(preset);
 	}
 
@@ -152,7 +152,7 @@ static char *build_capture_path(const struct args *a, struct config *cfg,
 	if (eff == ACTION_OUTPUT) {
 		save = true;
 	} else {
-		const char *si = config_get(cfg, "SAVE_IMAGES");
+		const char *si = config_get(cfg, "save_images");
 		save = si && strcmp(si, "true") == 0;
 	}
 
@@ -331,7 +331,7 @@ static int run_upload(struct config *cfg, const struct args *a) {
 
 	const char *service = a->service;
 	if (!service) {
-		service = config_get(cfg, "SERVICE");
+		service = config_get(cfg, "service");
 		if (!service) {
 			log_error("no service: pass --<service> or `grabit set SERVICE <name>`");
 			if (is_temp) {
@@ -449,7 +449,7 @@ static int run(const struct args *a) {
 
 	enum action eff = a->action;
 	if (eff == ACTION_NONE) {
-		const char *def = config_get(&cfg, "DEFAULT_OPTION");
+		const char *def = config_get(&cfg, "default_action");
 		if      (def && strcmp(def, "upload") == 0) eff = ACTION_UPLOAD;
 		else if (def && strcmp(def, "copy")   == 0) eff = ACTION_COPY;
 		else if (def && strcmp(def, "save")   == 0) eff = ACTION_OUTPUT;
@@ -464,7 +464,7 @@ static int run(const struct args *a) {
 	case ACTION_RECORD: rc = run_record(&cfg, a); break;
 	default:
 		log_error("no action specified — try -u, -c, -o, --record, or --tesseract");
-		log_info("(or set a default with: grabit set DEFAULT_OPTION upload)");
+		log_info("(or set a default with: grabit set default_action upload)");
 		rc = 1;
 		break;
 	}

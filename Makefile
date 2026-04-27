@@ -88,7 +88,13 @@ GRABIT_SRCS := \
 	src/notify/sd_bus.c \
 	src/region/wlr_layer.c \
 	src/upload/upload.c
-GRABIT_OBJS := $(GRABIT_SRCS:%.c=$(BUILDDIR)/%.o) $(WL_PROTO_OBJS)
+
+GRABIT_VENDOR_SRCS := \
+	src/vendor/tomlc99/toml.c
+
+GRABIT_OBJS := $(GRABIT_SRCS:%.c=$(BUILDDIR)/%.o) \
+               $(GRABIT_VENDOR_SRCS:%.c=$(BUILDDIR)/%.o) \
+               $(WL_PROTO_OBJS)
 GRABIT_BIN  := $(BUILDDIR)/grabit
 
 CHECK_SRCS  := tools/check_headers.c
@@ -118,6 +124,10 @@ $(GRABIT_OBJS): | $(WL_PROTO_HEADERS)
 $(WL_PROTO_DIR)/%.o: $(WL_PROTO_DIR)/%.c
 	$(CC) $(filter-out -Wpedantic -Wmissing-prototypes -Wstrict-prototypes,$(CFLAGS)) -c -o $@ $<
 
+$(BUILDDIR)/src/vendor/%.o: src/vendor/%.c
+	@mkdir -p $(@D)
+	$(CC) $(filter-out -Wpedantic -Wmissing-prototypes -Wstrict-prototypes -Wshadow -Wnull-dereference,$(CFLAGS)) -c -o $@ $<
+
 .PHONY: test
 test: $(CHECK_BIN)
 	$(CHECK_BIN) --check src
@@ -128,17 +138,22 @@ apply-headers: $(CHECK_BIN)
 
 SAN_BUILDDIR := build-san
 SAN_OBJS     := $(GRABIT_SRCS:%.c=$(SAN_BUILDDIR)/%.o)
+SAN_VOBJS    := $(GRABIT_VENDOR_SRCS:%.c=$(SAN_BUILDDIR)/%.o)
 SAN_DEPS     := $(SAN_OBJS:.o=.d)
 SAN_BIN      := $(SAN_BUILDDIR)/grabit
 SAN_FLAGS    := -O0 -g3 -fsanitize=address,undefined -fno-omit-frame-pointer
 
-$(SAN_BIN): $(SAN_OBJS) $(WL_PROTO_OBJS)
+$(SAN_BIN): $(SAN_OBJS) $(SAN_VOBJS) $(WL_PROTO_OBJS)
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) $(SAN_FLAGS) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
-$(SAN_BUILDDIR)/%.o: %.c
+$(SAN_BUILDDIR)/src/%.o: src/%.c
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) $(SAN_FLAGS) -c -o $@ $<
+
+$(SAN_BUILDDIR)/src/vendor/%.o: src/vendor/%.c
+	@mkdir -p $(@D)
+	$(CC) $(filter-out -Wpedantic -Wmissing-prototypes -Wstrict-prototypes -Wshadow -Wnull-dereference,$(CFLAGS)) $(SAN_FLAGS) -c -o $@ $<
 
 $(SAN_OBJS): | $(WL_PROTO_HEADERS)
 

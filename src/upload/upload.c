@@ -9,7 +9,6 @@
 #include "util.h"
 
 #include <ctype.h>
-#include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -154,9 +153,9 @@ int upload_perform(const char *service_name, const char *file_path,
 
 	const char *url = svc->url;
 	if (!url) {
-		url = config_get(cfg, "DOMAIN");
+		url = config_get(cfg, "services.zipline.domain");
 		if (!url) {
-			log_error("zipline requires the DOMAIN config key (e.g. https://example.com/api/upload)");
+			log_error("zipline requires services.zipline.domain (e.g. https://example.com/api/upload)");
 			return -1;
 		}
 	}
@@ -167,7 +166,7 @@ int upload_perform(const char *service_name, const char *file_path,
 	const char *auth = getenv(env_key);
 
 	char cfg_key[64];
-	snprintf(cfg_key, sizeof cfg_key, "%s_auth", svc->name);
+	snprintf(cfg_key, sizeof cfg_key, "services.%s.auth", svc->name);
 	if (!auth || !auth[0]) auth = config_get(cfg, cfg_key);
 
 	if (!auth || !auth[0]) {
@@ -191,7 +190,7 @@ int upload_perform(const char *service_name, const char *file_path,
 	curl_mime_filedata(part, file_path);
 
 	if (strcmp(svc->name, "nest") == 0) {
-		const char *folder = config_get(cfg, "nest_folder");
+		const char *folder = config_get(cfg, "services.nest.folder");
 		if (folder) {
 			curl_mimepart *fp = curl_mime_addpart(mime);
 			curl_mime_name(fp, "folder");
@@ -203,12 +202,15 @@ int upload_perform(const char *service_name, const char *file_path,
 	bool hdr_oom = false;
 	headers = append_header(headers, svc->auth_header, auth, &hdr_oom);
 
-	if (strcmp(svc->name, "zipline") == 0 && cfg && cfg->root) {
-		json_object_object_foreach(cfg->root, k, v) {
-			if (strncmp(k, "x-zipline", 9) != 0) continue;
-			if (json_object_get_type(v) != json_type_string) continue;
-			const char *val = json_object_get_string(v);
-			if (val && val[0]) headers = append_header(headers, k, val, &hdr_oom);
+	if (strcmp(svc->name, "zipline") == 0 && cfg) {
+		const char *prefix = "services.zipline.headers.";
+		size_t pl = strlen(prefix);
+		for (size_t i = 0; i < cfg->n; i++) {
+			const char *k = cfg->kvs[i].key;
+			if (strncmp(k, prefix, pl) != 0) continue;
+			const char *header_name = k + pl;
+			const char *val = cfg->kvs[i].val;
+			if (val && val[0]) headers = append_header(headers, header_name, val, &hdr_oom);
 		}
 	}
 

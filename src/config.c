@@ -6,154 +6,150 @@
 
 #include "log.h"
 #include "paths.h"
+#include "util.h"
 
+#include <ctype.h>
 #include <errno.h>
-#include <regex.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 
-#include <json-c/json.h>
+#include "vendor/tomlc99/toml.h"
 
-struct schema_entry {
-	const char *key;
-	const char *regex;
-	bool        required;
+static const char *BOOL_KEYS[] = {
+	"notifications", "sound", "save_images", NULL,
 };
 
-#define RX_LINE "^[^[:cntrl:]]+$"
-#define RX_BOOL "^(true|false)$"
-#define RX_NUM  "^[0-9]+$"
-#define RX_UUID "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$"
-#define RX_SERVICE "^(zipline|nest|fakecrime|ez|guns|pixelvault)$"
-
-static const struct schema_entry SCHEMA[] = {
-	{ "DEFAULT_OPTION",                       "^(upload|save|copy)$",            true  },
-	{ "SHOW_NOTIFICATIONS",                   RX_BOOL,                           true  },
-	{ "SNIP_SOUND",                           RX_BOOL,                           true  },
-	{ "SAVE_IMAGES",                          RX_BOOL,                           true  },
-	{ "SAVE_DIR",                             RX_LINE,                           false },
-	{ "DOMAIN",                               RX_LINE,                           false },
-	{ "SERVICE",                              RX_SERVICE,                        false },
-	{ "IMAGE_EDITOR",                         RX_LINE,                           false },
-	{ "FILE_NAME_FORMAT",                     "^(date|random|uuid|timestamp)$",  false },
-	{ "FILENAME_TEMPLATE",                    RX_LINE,                           false },
-
-	{ "nest_folder",                          RX_UUID,                           false },
-
-	{ "zipline_auth",                         RX_LINE,                           false },
-	{ "nest_auth",                            RX_LINE,                           false },
-	{ "fakecrime_auth",                       RX_LINE,                           false },
-	{ "ez_auth",                              RX_LINE,                           false },
-	{ "guns_auth",                            RX_LINE,                           false },
-	{ "pixelvault_auth",                      RX_LINE,                           false },
-
-	{ "x-zipline-max-views",                  RX_NUM,                            false },
-	{ "x-zipline-image-compression-percent",  RX_NUM,                            false },
-	{ "x-zipline-original-name",              RX_BOOL,                           false },
-	{ "x-zipline-format",                     "^(date|random|uuid|name|gfycat)$", false },
-	{ "x-zipline-domain",                     RX_LINE,                           false },
+static const char *KNOWN_TOP[] = {
+	"default_action", "notifications", "sound", "save_images",
+	"save_dir", "editor", "filename", "filename_preset", "service",
+	NULL,
 };
 
-static const size_t SCHEMA_LEN = sizeof SCHEMA / sizeof SCHEMA[0];
+static const char *KNOWN_SERVICES[] = {
+	"zipline", "nest", "fakecrime", "ez", "guns", "pixelvault", NULL,
+};
 
-static const struct schema_entry *schema_find(const char *key) {
-	for (size_t i = 0; i < SCHEMA_LEN; i++) {
-		if (strcmp(SCHEMA[i].key, key) == 0) return &SCHEMA[i];
+static const char *VALS_default_action[] = { "upload", "copy", "save", NULL };
+static const char *VALS_filename_preset[] = { "date", "random", "uuid", "timestamp", NULL };
+
+static bool in_list(const char *needle, const char **list) {
+	for (size_t i = 0; list[i]; i++) {
+		if (strcmp(list[i], needle) == 0) return true;
+	}
+	return false;
+}
+
+static bool is_bool_key(const char *key) { return in_list(key, BOOL_KEYS); }
+static bool is_known_service(const char *s) { return in_list(s, KNOWN_SERVICES); }
+
+static int kv_grow(struct config *c, size_t need) {
+	if (c->cap >= need) return 0;
+	size_t cap = c->cap ? c->cap : 16;
+	while (cap < need) cap *= 2;
+	struct kv *p = realloc(c->kvs, cap * sizeof *p);
+	if (!p) return -1;
+	c->kvs = p;
+	c->cap = cap;
+	return 0;
+}
+
+static struct kv *kv_find(struct config *c, const char *key) {
+	for (size_t i = 0; i < c->n; i++) {
+		if (strcmp(c->kvs[i].key, key) == 0) return &c->kvs[i];
 	}
 	return NULL;
 }
 
-static bool schema_value_ok(const struct schema_entry *e, const char *value) {
-	regex_t rx;
-	int rc = regcomp(&rx, e->regex, REG_EXTENDED | REG_NOSUB);
-	if (rc != 0) {
-		char buf[256];
-		regerror(rc, &rx, buf, sizeof buf);
-		die("internal: regcomp(%s): %s", e->regex, buf);
+static int kv_upsert(struct config *c, const char *key, const char *val) {
+	struct kv *e = kv_find(c, key);
+	if (e) {
+		char *nv = strdup(val);
+		if (!nv) return -1;
+		free(e->val);
+		e->val = nv;
+		return 0;
 	}
-	bool ok = regexec(&rx, value, 0, NULL, 0) == 0;
-	regfree(&rx);
-	return ok;
+	if (kv_grow(c, c->n + 1) != 0) return -1;
+	c->kvs[c->n].key = strdup(key);
+	c->kvs[c->n].val = strdup(val);
+	if (!c->kvs[c->n].key || !c->kvs[c->n].val) {
+		free(c->kvs[c->n].key);
+		free(c->kvs[c->n].val);
+		return -1;
+	}
+	c->n++;
+	return 0;
 }
 
-static struct json_object *defaults_object(void) {
-	struct json_object *o = json_object_new_object();
-	json_object_object_add(o, "DEFAULT_OPTION",     json_object_new_string("copy"));
-	json_object_object_add(o, "SHOW_NOTIFICATIONS", json_object_new_string("true"));
-	json_object_object_add(o, "SNIP_SOUND",         json_object_new_string("true"));
-	json_object_object_add(o, "SAVE_IMAGES",        json_object_new_string("false"));
-	return o;
-}
+static int flatten_table(toml_table_t *t, const char *prefix, struct config *c) {
+	for (int i = 0;; i++) {
+		const char *k = toml_key_in(t, i);
+		if (!k) break;
 
-static void log_first_run_hint(void) {
-	log_info("no config found at %s", paths_config_file());
-	log_info("wrote sensible defaults; configure with:");
-	log_info("  grabit set DEFAULT_OPTION upload");
-	log_info("  grabit set SERVICE zipline");
-	log_info("  grabit set zipline_auth <token>");
-	log_info("  grabit set DOMAIN https://<your-domain>/api/upload");
-}
-
-static int validate_in_place(struct config *c) {
-	char **to_drop = NULL;
-	size_t n_drop = 0, cap_drop = 0;
-
-	struct json_object_iterator it = json_object_iter_begin(c->root);
-	struct json_object_iterator end = json_object_iter_end(c->root);
-
-	while (!json_object_iter_equal(&it, &end)) {
-		const char *k = json_object_iter_peek_name(&it);
-		struct json_object *v = json_object_iter_peek_value(&it);
-		bool drop = false;
-
-		const struct schema_entry *e = schema_find(k);
-		if (!e) {
-			log_warn("dropping unknown config key: %s", k);
-			drop = true;
-		} else if (json_object_get_type(v) != json_type_string) {
-			log_warn("dropping %s: expected string, got %s", k,
-			         json_type_to_name(json_object_get_type(v)));
-			drop = true;
-		} else if (!schema_value_ok(e, json_object_get_string(v))) {
-			log_warn("dropping %s: value %s does not match schema", k,
-			         json_object_get_string(v));
-			drop = true;
+		char *full = NULL;
+		if (prefix && prefix[0]) {
+			if (grabit_xasprintf(&full, "%s.%s", prefix, k) != 0) return -1;
+		} else {
+			full = strdup(k);
+			if (!full) return -1;
 		}
 
-		if (drop) {
-			if (n_drop == cap_drop) {
-				size_t ncap = cap_drop ? cap_drop * 2 : 8;
-				char **p = realloc(to_drop, ncap * sizeof *p);
-				if (p) {
-					to_drop = p;
-					cap_drop = ncap;
-				}
-			}
-			if (n_drop < cap_drop) {
-				char *copy = strdup(k);
-				if (copy) to_drop[n_drop++] = copy;
-			}
+		toml_datum_t s = toml_string_in(t, k);
+		if (s.ok) {
+			int rc = kv_upsert(c, full, s.u.s);
+			free(s.u.s);
+			free(full);
+			if (rc != 0) return -1;
+			continue;
 		}
-		json_object_iter_next(&it);
-	}
 
-	for (size_t i = 0; i < n_drop; i++) {
-		json_object_object_del(c->root, to_drop[i]);
-		free(to_drop[i]);
+		toml_datum_t b = toml_bool_in(t, k);
+		if (b.ok) {
+			int rc = kv_upsert(c, full, b.u.b ? "true" : "false");
+			free(full);
+			if (rc != 0) return -1;
+			continue;
+		}
+
+		toml_datum_t n = toml_int_in(t, k);
+		if (n.ok) {
+			char buf[32];
+			snprintf(buf, sizeof buf, "%lld", (long long)n.u.i);
+			int rc = kv_upsert(c, full, buf);
+			free(full);
+			if (rc != 0) return -1;
+			continue;
+		}
+
+		toml_table_t *sub = toml_table_in(t, k);
+		if (sub) {
+			int rc = flatten_table(sub, full, c);
+			free(full);
+			if (rc != 0) return -1;
+			continue;
+		}
+
+		log_warn("dropping unsupported config value at %s", full);
+		free(full);
 	}
-	free(to_drop);
-	return (int)n_drop;
+	return 0;
+}
+
+static void seed_defaults(struct config *c) {
+	kv_upsert(c, "default_action", "copy");
+	kv_upsert(c, "notifications",  "true");
+	kv_upsert(c, "sound",          "true");
+	kv_upsert(c, "save_images",    "false");
 }
 
 int config_load(struct config *c) {
-	c->root = NULL;
+	memset(c, 0, sizeof *c);
 
 	const char *file = paths_config_file();
 	const char *dir  = paths_config_dir();
-
 	if (paths_mkdir_p(dir) != 0) {
 		log_error("mkdir -p %s: %s", dir, strerror(errno));
 		return -1;
@@ -161,101 +157,226 @@ int config_load(struct config *c) {
 
 	struct stat st;
 	bool first_run = stat(file, &st) != 0 || st.st_size == 0;
-
 	if (first_run) {
-		c->root = defaults_object();
-		if (!c->root) {
-			log_error("oom: defaults_object");
-			return -1;
-		}
+		seed_defaults(c);
 		if (config_save(c) != 0) {
 			log_error("could not write default config to %s: %s", file, strerror(errno));
-			json_object_put(c->root);
-			c->root = NULL;
+			config_free(c);
 			return -1;
 		}
-		log_first_run_hint();
+		log_info("no config found at %s; wrote sensible defaults.", file);
+		log_info("configure with: grabit set <key> <value>");
 		return 0;
 	}
 
-	c->root = json_object_from_file(file);
-	if (!c->root) {
-		log_error("could not parse %s as JSON", file);
+	FILE *f = fopen(file, "r");
+	if (!f) {
+		log_error("open(%s): %s", file, strerror(errno));
 		return -1;
 	}
-	if (json_object_get_type(c->root) != json_type_object) {
-		log_warn("%s: top-level is not a JSON object — replacing with defaults", file);
-		json_object_put(c->root);
-		c->root = defaults_object();
-		(void)config_save(c);
-		return 0;
+	char errbuf[256];
+	toml_table_t *root = toml_parse_file(f, errbuf, sizeof errbuf);
+	fclose(f);
+	if (!root) {
+		log_error("parse %s: %s", file, errbuf);
+		return -1;
 	}
 
-	int dropped = validate_in_place(c);
-	if (dropped > 0) {
-		(void)config_save(c);
+	int rc = flatten_table(root, "", c);
+	toml_free(root);
+	if (rc != 0) {
+		config_free(c);
+		return -1;
 	}
 	return 0;
 }
 
+static int cmp_kv(const void *a, const void *b) {
+	const struct kv *ka = a;
+	const struct kv *kb = b;
+	bool ad = strchr(ka->key, '.') != NULL;
+	bool bd = strchr(kb->key, '.') != NULL;
+	if (ad != bd) return ad ? 1 : -1;
+	return strcmp(ka->key, kb->key);
+}
+
+static int section_depth(const char *key) {
+	int d = 0;
+	for (const char *p = key; *p; p++) if (*p == '.') d++;
+	return d;
+}
+
+static void emit_string_value(struct grabit_buf *out, const char *s) {
+	grabit_buf_putc(out, '"');
+	for (const char *p = s; *p; p++) {
+		unsigned char ch = (unsigned char)*p;
+		if (ch == '"' || ch == '\\') {
+			grabit_buf_putc(out, '\\');
+			grabit_buf_putc(out, (char)ch);
+		} else if (ch < 0x20) {
+			char esc[8];
+			snprintf(esc, sizeof esc, "\\u%04x", ch);
+			grabit_buf_puts(out, esc);
+		} else {
+			grabit_buf_putc(out, (char)ch);
+		}
+	}
+	grabit_buf_putc(out, '"');
+}
+
+static bool key_needs_quoting(const char *k) {
+	if (!*k) return true;
+	for (const char *p = k; *p; p++) {
+		unsigned char ch = (unsigned char)*p;
+		if (!(isalnum(ch) || ch == '_' || ch == '-')) return true;
+	}
+	return false;
+}
+
+static void emit_bare_or_quoted_key(struct grabit_buf *out, const char *k) {
+	if (key_needs_quoting(k)) {
+		emit_string_value(out, k);
+	} else {
+		grabit_buf_puts(out, k);
+	}
+}
+
 int config_save(struct config *c) {
-	if (!c->root) {
-		errno = EINVAL;
-		return -1;
+	if (c->n > 1) qsort(c->kvs, c->n, sizeof *c->kvs, cmp_kv);
+
+	struct grabit_buf out = {0};
+	const char *current_section = NULL;
+	size_t current_section_len = 0;
+
+	for (size_t i = 0; i < c->n; i++) {
+		const char *key = c->kvs[i].key;
+		bool is_top = section_depth(key) == 0;
+
+		if (is_top) {
+			if (current_section) {
+				current_section = NULL;
+				current_section_len = 0;
+			}
+		} else {
+			const char *last_dot = strrchr(key, '.');
+			size_t prefix_len = (size_t)(last_dot - key);
+			if (!current_section ||
+			    current_section_len != prefix_len ||
+			    strncmp(current_section, key, prefix_len) != 0) {
+				if (out.len > 0) grabit_buf_putc(&out, '\n');
+				grabit_buf_putc(&out, '[');
+				char *prefix = strndup(key, prefix_len);
+				if (!prefix) goto oom;
+				const char *seg = prefix;
+				bool first_seg = true;
+				char *dot;
+				while ((dot = strchr(seg, '.')) != NULL) {
+					if (!first_seg) grabit_buf_putc(&out, '.');
+					*dot = '\0';
+					emit_bare_or_quoted_key(&out, seg);
+					seg = dot + 1;
+					first_seg = false;
+				}
+				if (!first_seg) grabit_buf_putc(&out, '.');
+				emit_bare_or_quoted_key(&out, seg);
+				free(prefix);
+				grabit_buf_puts(&out, "]\n");
+				current_section = key;
+				current_section_len = prefix_len;
+			}
+		}
+
+		const char *short_key = is_top ? key : strrchr(key, '.') + 1;
+		emit_bare_or_quoted_key(&out, short_key);
+		grabit_buf_puts(&out, " = ");
+		const char *val = c->kvs[i].val;
+		if (is_bool_key(short_key) && (strcmp(val, "true") == 0 || strcmp(val, "false") == 0)) {
+			grabit_buf_puts(&out, val);
+		} else {
+			emit_string_value(&out, val);
+		}
+		grabit_buf_putc(&out, '\n');
 	}
-	const char *json = json_object_to_json_string_ext(c->root, JSON_C_TO_STRING_PRETTY);
-	if (!json) {
-		errno = EIO;
-		return -1;
-	}
-	return paths_atomic_write(paths_config_file(), json, strlen(json));
+
+	if (out.len == 0) grabit_buf_putc(&out, '\n');
+	int rc = paths_atomic_write(paths_config_file(), out.data, out.len);
+	grabit_buf_free(&out);
+	(void)current_section_len;
+	return rc;
+
+oom:
+	grabit_buf_free(&out);
+	errno = ENOMEM;
+	return -1;
 }
 
 void config_free(struct config *c) {
 	if (!c) return;
-	if (c->root) json_object_put(c->root);
-	c->root = NULL;
+	for (size_t i = 0; i < c->n; i++) {
+		free(c->kvs[i].key);
+		free(c->kvs[i].val);
+	}
+	free(c->kvs);
+	memset(c, 0, sizeof *c);
 }
 
 const char *config_get(struct config *c, const char *key) {
-	if (!c->root) return NULL;
-	struct json_object *v;
-	if (!json_object_object_get_ex(c->root, key, &v)) return NULL;
-	if (json_object_get_type(v) != json_type_string) return NULL;
-	return json_object_get_string(v);
+	struct kv *e = kv_find(c, key);
+	return e ? e->val : NULL;
+}
+
+static bool valid_top_key(const char *key) { return in_list(key, KNOWN_TOP); }
+
+static bool valid_service_key(const char *key) {
+	if (strncmp(key, "services.", 9) != 0) return false;
+	const char *rest = key + 9;
+	const char *dot = strchr(rest, '.');
+	if (!dot) return false;
+	char svc[32];
+	size_t svc_len = (size_t)(dot - rest);
+	if (svc_len == 0 || svc_len >= sizeof svc) return false;
+	memcpy(svc, rest, svc_len);
+	svc[svc_len] = '\0';
+	if (!is_known_service(svc)) return false;
+
+	const char *leaf = dot + 1;
+	if (strcmp(leaf, "auth") == 0)   return true;
+	if (strcmp(leaf, "domain") == 0) return strcmp(svc, "zipline") == 0;
+	if (strcmp(leaf, "folder") == 0) return strcmp(svc, "nest") == 0;
+	if (strncmp(leaf, "headers.", 8) == 0) return strcmp(svc, "zipline") == 0 && leaf[8] != '\0';
+	return false;
 }
 
 int config_set(struct config *c, const char *key, const char *value) {
-	const struct schema_entry *e = schema_find(key);
-	if (!e) {
+	if (!valid_top_key(key) && !valid_service_key(key)) {
 		log_error("unknown config key: %s", key);
 		return -1;
 	}
-	if (!schema_value_ok(e, value)) {
-		log_error("invalid value for %s: %s (must match %s)", key, value, e->regex);
+	if (strcmp(key, "default_action") == 0 && !in_list(value, VALS_default_action)) {
+		log_error("default_action must be one of upload|copy|save");
 		return -1;
 	}
-	struct json_object *jv = json_object_new_string(value);
-	if (!jv) {
+	if (strcmp(key, "filename_preset") == 0 && !in_list(value, VALS_filename_preset)) {
+		log_error("filename_preset must be one of date|random|uuid|timestamp");
+		return -1;
+	}
+	if (strcmp(key, "service") == 0 && !is_known_service(value)) {
+		log_error("service must be one of zipline|nest|fakecrime|ez|guns|pixelvault");
+		return -1;
+	}
+	if (is_bool_key(key) && strcmp(value, "true") != 0 && strcmp(value, "false") != 0) {
+		log_error("%s must be true or false", key);
+		return -1;
+	}
+	if (kv_upsert(c, key, value) != 0) {
 		log_error("oom: config_set");
-		return -1;
-	}
-	if (json_object_object_add(c->root, key, jv) != 0) {
-		json_object_put(jv);
-		log_error("config_set: json_object_object_add failed");
 		return -1;
 	}
 	return config_save(c);
 }
 
 bool config_needs_setup(struct config *c) {
-	if (!c->root) return true;
-	for (size_t i = 0; i < SCHEMA_LEN; i++) {
-		if (!SCHEMA[i].required) continue;
-		struct json_object *v;
-		if (!json_object_object_get_ex(c->root, SCHEMA[i].key, &v)) return true;
-	}
-	return false;
+	return config_get(c, "default_action") == NULL;
 }
 
 int cmd_set(int argc, char **argv) {
@@ -282,10 +403,9 @@ int cmd_get(int argc, char **argv) {
 
 	int rc = 0;
 	if (argc == 0) {
-		const char *s = json_object_to_json_string_ext(c.root, JSON_C_TO_STRING_PRETTY);
-		if (s) {
-			fputs(s, stdout);
-			fputc('\n', stdout);
+		if (c.n > 1) qsort(c.kvs, c.n, sizeof *c.kvs, cmp_kv);
+		for (size_t i = 0; i < c.n; i++) {
+			printf("%s = %s\n", c.kvs[i].key, c.kvs[i].val);
 		}
 	} else {
 		const char *v = config_get(&c, argv[0]);
@@ -299,3 +419,4 @@ int cmd_get(int argc, char **argv) {
 	config_free(&c);
 	return rc;
 }
+

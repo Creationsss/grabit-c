@@ -26,13 +26,13 @@ const char *paths_config_dir(void) {
 	const char *xdg = getenv("XDG_CONFIG_HOME");
 	int rc;
 	if (xdg && xdg[0] == '/') {
-		rc = grabit_xasprintf(&g_config_dir, "%s/grabIT", xdg);
+		rc = grabit_xasprintf(&g_config_dir, "%s/grabit", xdg);
 	} else {
 		const char *home = getenv("HOME");
 		if (!home || home[0] != '/') {
 			die("HOME is not set");
 		}
-		rc = grabit_xasprintf(&g_config_dir, "%s/.config/grabIT", home);
+		rc = grabit_xasprintf(&g_config_dir, "%s/.config/grabit", home);
 	}
 	if (rc != 0 || !g_config_dir) die("oom: paths_config_dir");
 	return g_config_dir;
@@ -40,7 +40,7 @@ const char *paths_config_dir(void) {
 
 const char *paths_config_file(void) {
 	if (g_config_file) return g_config_file;
-	if (grabit_xasprintf(&g_config_file, "%s/config.json", paths_config_dir()) != 0) {
+	if (grabit_xasprintf(&g_config_file, "%s/config.toml", paths_config_dir()) != 0) {
 		die("oom: paths_config_file");
 	}
 	return g_config_file;
