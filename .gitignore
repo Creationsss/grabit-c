@@ -1,0 +1,13 @@
+build/
+build-*/
+.cache/
+compile_commands.json
+*.o
+*.a
+*.so
+*.so.*
+core
+core.*
+vgcore.*
+*.log
+.DS_Store

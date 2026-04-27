@@ -1,0 +1,29 @@
+default:
+  image: debian:trixie-slim
+  before_script:
+    - apt-get update -qq
+    - DEBIAN_FRONTEND=noninteractive apt-get install -qq -y --no-install-recommends
+        build-essential pkg-config
+        libwayland-dev libwayland-bin
+        libcairo2-dev libxkbcommon-dev libmagic-dev
+        libcurl4-openssl-dev libjson-c-dev libsystemd-dev
+
+stages:
+  - test
+
+build:
+  stage: test
+  script:
+    - make all
+    - ./build/grabit --version
+    - make test
+  artifacts:
+    paths:
+      - build/grabit
+    expire_in: 1 week
+
+sanitize:
+  stage: test
+  script:
+    - make sanitize
+    - ./build-san/grabit --version

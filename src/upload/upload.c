@@ -1,0 +1,276 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 creations
+
+#define _XOPEN_SOURCE 700
+#include "upload/upload.h"
+
+#include "config.h"
+#include "log.h"
+#include "util.h"
+
+#include <ctype.h>
+#include <errno.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include <curl/curl.h>
+#include <json-c/json.h>
+
+struct service {
+	const char *name;
+	const char *url;
+	const char *auth_header;
+	const char *json_path;
+};
+
+static const struct service SERVICES[] = {
+	{ "zipline",    NULL,                                 "authorization", "files[0].url" },
+	{ "nest",       "https://nest.rip/api/files/upload",  "Authorization", "fileURL"      },
+	{ "fakecrime",  "https://upload.fakecrime.bio",       "Authorization", "url"          },
+	{ "ez",         "https://api.e-z.host/files",         "key",           "imageUrl"     },
+	{ "guns",       "https://guns.lol/api/upload",        "key",           "link"         },
+	{ "pixelvault", "https://pixelvault.co/api/upload",   "Authorization", "resource"     },
+};
+static const size_t N_SERVICES = sizeof SERVICES / sizeof SERVICES[0];
+
+static const struct service *find_service(const char *name) {
+	for (size_t i = 0; i < N_SERVICES; i++) {
+		if (strcmp(SERVICES[i].name, name) == 0) return &SERVICES[i];
+	}
+	return NULL;
+}
+
+bool upload_service_known(const char *name) { return find_service(name) != NULL; }
+
+static size_t curl_write_cb(char *ptr, size_t size, size_t nmemb, void *user) {
+	struct grabit_buf *b = user;
+	size_t total = size * nmemb;
+	return grabit_buf_putn(b, ptr, total) == 0 ? total : 0;
+}
+
+static struct json_object *walk_path(struct json_object *root, const char *path) {
+	struct json_object *cur = root;
+	const char *p = path;
+	char key[256];
+
+	while (*p && cur) {
+		if (*p == '.') p++;
+
+		if (*p == '[') {
+			p++;
+			unsigned long idx = 0;
+			if (!isdigit((unsigned char)*p)) return NULL;
+			while (isdigit((unsigned char)*p)) {
+				if (idx > (UINT32_MAX - 9) / 10) return NULL;
+				idx = idx * 10 + (unsigned long)(*p - '0');
+				p++;
+			}
+			if (*p != ']') return NULL;
+			p++;
+			if (json_object_get_type(cur) != json_type_array) return NULL;
+			cur = json_object_array_get_idx(cur, (size_t)idx);
+			continue;
+		}
+
+		size_t k = 0;
+		while (*p && *p != '.' && *p != '[' && k + 1 < sizeof key) {
+			key[k++] = *p++;
+		}
+		key[k] = '\0';
+		if (k == 0) return NULL;
+
+		if (json_object_get_type(cur) != json_type_object) return NULL;
+		struct json_object *next;
+		if (!json_object_object_get_ex(cur, key, &next)) return NULL;
+		cur = next;
+	}
+	return cur;
+}
+
+static char *extract_url(struct json_object *root, const char *path) {
+	struct json_object *v = walk_path(root, path);
+	if (!v) return NULL;
+	if (json_object_get_type(v) != json_type_string) return NULL;
+	const char *s = json_object_get_string(v);
+	if (!s || !s[0]) return NULL;
+	return strdup(s);
+}
+
+static struct curl_slist *append_header(struct curl_slist *list,
+                                        const char *name, const char *value,
+                                        bool *oom) {
+	size_t n = strlen(name) + strlen(value) + 3;
+	char *line = malloc(n);
+	if (!line) {
+		*oom = true;
+		return list;
+	}
+	snprintf(line, n, "%s: %s", name, value);
+	struct curl_slist *next = curl_slist_append(list, line);
+	free(line);
+	if (!next) *oom = true;
+	return next ? next : list;
+}
+
+static void log_http_failure(long code, const char *body) {
+	switch (code) {
+	case 401:
+		log_error("upload failed (401): authentication failed — check your auth token");
+		break;
+	case 413:
+		log_error("upload failed (413): file too large — try compressing");
+		break;
+	case 500:
+		log_error("upload failed (500): server error — try again later");
+		break;
+	default:
+		if (code == 0) log_error("upload failed: no response from server");
+		else           log_error("upload failed (HTTP %ld)", code);
+		if (body && body[0]) log_error("response: %s", body);
+		break;
+	}
+}
+
+void upload_result_free(struct upload_result *r) {
+	if (!r) return;
+	free(r->url);
+	free(r->body);
+	r->url = r->body = NULL;
+	r->http_code = 0;
+}
+
+int upload_perform(const char *service_name, const char *file_path,
+                   struct config *cfg, struct upload_result *out) {
+	upload_result_free(out);
+
+	const struct service *svc = find_service(service_name);
+	if (!svc) {
+		log_error("unknown service: %s", service_name);
+		return -1;
+	}
+
+	const char *url = svc->url;
+	if (!url) {
+		url = config_get(cfg, "DOMAIN");
+		if (!url) {
+			log_error("zipline requires the DOMAIN config key (e.g. https://example.com/api/upload)");
+			return -1;
+		}
+	}
+
+	char env_key[64];
+	snprintf(env_key, sizeof env_key, "GRABIT_%s_AUTH", svc->name);
+	for (char *p = env_key + 7; *p; p++) *p = (char)toupper((unsigned char)*p);
+	const char *auth = getenv(env_key);
+
+	char cfg_key[64];
+	snprintf(cfg_key, sizeof cfg_key, "%s_auth", svc->name);
+	if (!auth || !auth[0]) auth = config_get(cfg, cfg_key);
+
+	if (!auth || !auth[0]) {
+		log_error("no auth token for %s.", svc->name);
+		log_error("  recommended (password-manager-friendly):");
+		log_error("    export %s=\"$(pass show grabit/%s)\"", env_key, svc->name);
+		log_error("  or fallback (plaintext in config 0600):");
+		log_error("    grabit set %s <token>", cfg_key);
+		return -1;
+	}
+
+	CURL *curl = curl_easy_init();
+	if (!curl) {
+		log_error("curl_easy_init failed");
+		return -1;
+	}
+
+	curl_mime *mime = curl_mime_init(curl);
+	curl_mimepart *part = curl_mime_addpart(mime);
+	curl_mime_name(part, "file");
+	curl_mime_filedata(part, file_path);
+
+	if (strcmp(svc->name, "nest") == 0) {
+		const char *folder = config_get(cfg, "nest_folder");
+		if (folder) {
+			curl_mimepart *fp = curl_mime_addpart(mime);
+			curl_mime_name(fp, "folder");
+			curl_mime_data(fp, folder, CURL_ZERO_TERMINATED);
+		}
+	}
+
+	struct curl_slist *headers = NULL;
+	bool hdr_oom = false;
+	headers = append_header(headers, svc->auth_header, auth, &hdr_oom);
+
+	if (strcmp(svc->name, "zipline") == 0 && cfg && cfg->root) {
+		json_object_object_foreach(cfg->root, k, v) {
+			if (strncmp(k, "x-zipline", 9) != 0) continue;
+			if (json_object_get_type(v) != json_type_string) continue;
+			const char *val = json_object_get_string(v);
+			if (val && val[0]) headers = append_header(headers, k, val, &hdr_oom);
+		}
+	}
+
+	if (hdr_oom) {
+		log_error("upload: header allocation failed");
+		curl_slist_free_all(headers);
+		curl_mime_free(mime);
+		curl_easy_cleanup(curl);
+		return -1;
+	}
+
+	struct grabit_buf body = {0};
+	curl_easy_setopt(curl, CURLOPT_URL, url);
+	curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+	curl_easy_setopt(curl, CURLOPT_MIMEPOST, mime);
+	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_write_cb);
+	curl_easy_setopt(curl, CURLOPT_WRITEDATA, &body);
+	curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+	curl_easy_setopt(curl, CURLOPT_USERAGENT, "grabit/0.1.0");
+	curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 1L);
+	curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 30L);
+	curl_easy_setopt(curl, CURLOPT_TIMEOUT, 300L);
+	curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
+
+	log_debug("POST %s (%s)", url, svc->name);
+	CURLcode rc = curl_easy_perform(curl);
+	long http_code = 0;
+	curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+	out->http_code = http_code;
+	out->body = body.data;
+	body.data = NULL;
+
+	curl_slist_free_all(headers);
+	curl_mime_free(mime);
+	curl_easy_cleanup(curl);
+
+	if (rc != CURLE_OK) {
+		log_error("curl: %s", curl_easy_strerror(rc));
+		return -1;
+	}
+	if (http_code != 200) {
+		log_http_failure(http_code, out->body);
+		return -1;
+	}
+
+	struct json_object *root = out->body
+		? json_tokener_parse(out->body)
+		: NULL;
+	if (!root || json_object_get_type(root) != json_type_object) {
+		log_error("invalid JSON response from %s", svc->name);
+		if (out->body) log_error("response: %s", out->body);
+		if (root) json_object_put(root);
+		return -1;
+	}
+
+	out->url = extract_url(root, svc->json_path);
+	json_object_put(root);
+
+	if (!out->url) {
+		log_error("could not find %s in %s response", svc->json_path, svc->name);
+		log_error("response: %s", out->body);
+		return -1;
+	}
+	return 0;
+}
