@@ -479,18 +479,13 @@ int main(int argc, char **argv) {
 	log_init(pre_silent, pre_debug);
 	install_signal_handlers();
 
-	if (argc < 2) {
-		log_error("no command given. Try `grabit --help`.");
-		return 1;
+	if (argc >= 2) {
+		const char *first = argv[1];
+		if (strcmp(first, "--version") == 0) return print_version();
+		if (strcmp(first, "--help") == 0 || strcmp(first, "-h") == 0) return print_help();
+		if (strcmp(first, "set") == 0) return cmd_set(argc - 2, argv + 2);
+		if (strcmp(first, "get") == 0) return cmd_get(argc - 2, argv + 2);
 	}
-
-	const char *first = argv[1];
-
-	if (strcmp(first, "--version") == 0) return print_version();
-	if (strcmp(first, "--help") == 0 || strcmp(first, "-h") == 0) return print_help();
-
-	if (strcmp(first, "set") == 0) return cmd_set(argc - 2, argv + 2);
-	if (strcmp(first, "get") == 0) return cmd_get(argc - 2, argv + 2);
 
 	struct args a;
 	if (args_parse(argc, argv, &a) != 0) return 1;
