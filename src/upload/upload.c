@@ -32,7 +32,7 @@ static const struct service SERVICES[] = {
 	{ "fakecrime",  "https://upload.fakecrime.bio",       "Secret",        "url|data.url", false },
 	{ "ez",         "https://api.e-z.host/files",         "key",           "imageUrl",     false },
 	{ "guns",       "https://guns.lol/api/upload",        "key",           "link",         true  },
-	{ "pixelvault", "https://pixelvault.co/api/upload",   "Authorization", "resource",     false },
+	{ "pixelvault", "https://pixelvault.co/",             "Authorization", "resource",     false },
 };
 static const size_t N_SERVICES = sizeof SERVICES / sizeof SERVICES[0];
 
