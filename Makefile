@@ -142,18 +142,19 @@ SAN_VOBJS    := $(GRABIT_VENDOR_SRCS:%.c=$(SAN_BUILDDIR)/%.o)
 SAN_DEPS     := $(SAN_OBJS:.o=.d)
 SAN_BIN      := $(SAN_BUILDDIR)/grabit
 SAN_FLAGS    := -O0 -g3 -fsanitize=address,undefined -fno-omit-frame-pointer
+SAN_CFLAGS    = $(filter-out -D_FORTIFY_SOURCE=2,$(CFLAGS))
 
 $(SAN_BIN): $(SAN_OBJS) $(SAN_VOBJS) $(WL_PROTO_OBJS)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) $(SAN_FLAGS) $(LDFLAGS) -o $@ $^ $(LDLIBS)
+	$(CC) $(SAN_CFLAGS) $(SAN_FLAGS) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
 $(SAN_BUILDDIR)/src/%.o: src/%.c
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) $(SAN_FLAGS) -c -o $@ $<
+	$(CC) $(SAN_CFLAGS) $(SAN_FLAGS) -c -o $@ $<
 
 $(SAN_BUILDDIR)/src/vendor/%.o: src/vendor/%.c
 	@mkdir -p $(@D)
-	$(CC) $(filter-out -Wpedantic -Wmissing-prototypes -Wstrict-prototypes -Wshadow -Wnull-dereference,$(CFLAGS)) $(SAN_FLAGS) -c -o $@ $<
+	$(CC) $(filter-out -Wpedantic -Wmissing-prototypes -Wstrict-prototypes -Wshadow -Wnull-dereference,$(SAN_CFLAGS)) $(SAN_FLAGS) -c -o $@ $<
 
 $(SAN_OBJS): | $(WL_PROTO_HEADERS)
 
