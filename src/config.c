@@ -19,11 +19,11 @@
 #include "vendor/tomlc99/toml.h"
 
 static const char *BOOL_KEYS[] = {
-	"notifications", "sound", "save_images", NULL,
+	"notifications", "sound", "save_captures", NULL,
 };
 
 static const char *KNOWN_TOP[] = {
-	"default_action", "notifications", "sound", "save_images",
+	"default_action", "notifications", "sound", "save_captures",
 	"save_dir", "editor", "filename", "filename_preset", "service",
 	NULL,
 };
@@ -176,8 +176,8 @@ static int flatten_table(toml_table_t *t, const char *prefix, struct config *c) 
 static void seed_defaults(struct config *c) {
 	kv_upsert(c, "default_action", "copy");
 	kv_upsert(c, "notifications",  "true");
-	kv_upsert(c, "sound",          "true");
-	kv_upsert(c, "save_images",    "false");
+	kv_upsert(c, "sound",          "false");
+	kv_upsert(c, "save_captures",    "false");
 }
 
 int config_load(struct config *c) {
@@ -454,7 +454,30 @@ int config_set(struct config *c, const char *key, const char *value) {
 		}
 	}
 
-	if (kv_upsert(c, key, value) != 0) {
+	char *normalized = NULL;
+	if (strcmp(key, "services.zipline.domain") == 0 && value && *value) {
+		bool has_scheme = strncmp(value, "http://", 7) == 0 ||
+		                  strncmp(value, "https://", 8) == 0;
+		size_t vlen = strlen(value);
+		while (vlen > 0 && value[vlen - 1] == '/') vlen--;
+		const char *suffix = "/api/upload";
+		size_t slen = strlen(suffix);
+		bool has_path = vlen >= slen && strncmp(value + vlen - slen, suffix, slen) == 0;
+		int rc;
+		if (has_scheme && has_path)      rc = grabit_xasprintf(&normalized, "%.*s", (int)vlen, value);
+		else if (has_scheme)             rc = grabit_xasprintf(&normalized, "%.*s/api/upload", (int)vlen, value);
+		else if (has_path)               rc = grabit_xasprintf(&normalized, "https://%.*s", (int)vlen, value);
+		else                             rc = grabit_xasprintf(&normalized, "https://%.*s/api/upload", (int)vlen, value);
+		if (rc != 0) {
+			log_error("oom: config_set");
+			return -1;
+		}
+		value = normalized;
+	}
+
+	int rc = kv_upsert(c, key, value);
+	free(normalized);
+	if (rc != 0) {
 		log_error("oom: config_set");
 		return -1;
 	}
@@ -465,7 +488,135 @@ bool config_needs_setup(struct config *c) {
 	return config_get(c, "default_action") == NULL;
 }
 
+struct example { const char *key; const char *example; const char *def; };
+
+static const struct example TOP_EXAMPLES[] = {
+	{ "default_action",  "upload|copy|save",                          "copy" },
+	{ "notifications",   "true|false",                                "true" },
+	{ "sound",           "true|false",                                "false" },
+	{ "save_captures",   "true|false",                                "false" },
+	{ "save_dir",        "~/Pictures",                                NULL },
+	{ "editor",          "satty",                                     NULL },
+	{ "filename",        "%Y-%m-%d-%H-%M-%S",                         NULL },
+	{ "filename_preset", "date|random|uuid|timestamp",                "date" },
+	{ "service",         "zipline|nest|fakecrime|ez|guns|pixelvault", NULL },
+};
+static const size_t TOP_EXAMPLES_N = sizeof TOP_EXAMPLES / sizeof TOP_EXAMPLES[0];
+
+static const char *zl_header_example(const struct zl_hdr *h) {
+	static char buf[160];
+	switch (h->kind) {
+	case ZL_FREE:
+		if (strcmp(h->name, "x-zipline-deletes-at") == 0)     return "1d";
+		if (strcmp(h->name, "x-zipline-domain") == 0)         return "cdn1.example.com,cdn2.example.com";
+		if (strcmp(h->name, "x-zipline-file-extension") == 0) return ".png";
+		if (strcmp(h->name, "x-zipline-folder") == 0)         return "<folder-id>";
+		if (strcmp(h->name, "x-zipline-filename") == 0)       return "<override>";
+		return "<string>";
+	case ZL_ENUM: {
+		size_t off = 0;
+		buf[0] = '\0';
+		for (size_t i = 0; h->allowed[i]; i++) {
+			int n = snprintf(buf + off, sizeof buf - off, "%s%s", i ? "|" : "", h->allowed[i]);
+			if (n < 0 || (size_t)n >= sizeof buf - off) break;
+			off += (size_t)n;
+		}
+		return buf;
+	}
+	case ZL_INT:     return "<integer>";
+	case ZL_INT_PCT: return "0-100";
+	}
+	return "";
+}
+
+static int example_for_key(const char *key, const char **example_out, const char **def_out) {
+	*def_out = NULL;
+	for (size_t i = 0; i < TOP_EXAMPLES_N; i++) {
+		if (strcmp(TOP_EXAMPLES[i].key, key) == 0) {
+			*example_out = TOP_EXAMPLES[i].example;
+			*def_out     = TOP_EXAMPLES[i].def;
+			return 0;
+		}
+	}
+	if (strncmp(key, "services.", 9) == 0) {
+		const char *rest = key + 9;
+		const char *dot = strchr(rest, '.');
+		if (!dot) return -1;
+		const char *leaf = dot + 1;
+		if (strcmp(leaf, "auth") == 0)   { *example_out = "<api-token>";              return 0; }
+		if (strcmp(leaf, "domain") == 0) { *example_out = "https://<host>/api/upload"; return 0; }
+		if (strcmp(leaf, "folder") == 0) { *example_out = "<folder-uuid>";             return 0; }
+		if (strncmp(leaf, "headers.", 8) == 0) {
+			const struct zl_hdr *h = zl_find(leaf + 8);
+			if (h) { *example_out = zl_header_example(h); return 0; }
+		}
+	}
+	return -1;
+}
+
+static void print_example(const char *example, const char *def) {
+	if (!def) {
+		printf("%s", example);
+		return;
+	}
+	size_t deflen = strlen(def);
+	const char *p = example;
+	while (*p) {
+		const char *bar = strchr(p, '|');
+		size_t len = bar ? (size_t)(bar - p) : strlen(p);
+		if (len == deflen && strncmp(p, def, len) == 0) {
+			printf("%.*s*", (int)len, p);
+		} else {
+			printf("%.*s", (int)len, p);
+		}
+		if (!bar) break;
+		printf("|");
+		p = bar + 1;
+	}
+}
+
+static void print_set_help(void) {
+	puts("keys (run `grabit set <key>` for example values):");
+	puts("");
+	for (size_t i = 0; i < TOP_EXAMPLES_N; i++) {
+		printf("  %s\n", TOP_EXAMPLES[i].key);
+	}
+	puts("");
+	puts("  services.<svc>.auth     (svc: zipline|nest|fakecrime|ez|guns|pixelvault)");
+	puts("  services.zipline.domain");
+	puts("  services.nest.folder");
+	puts("");
+	puts("  services.zipline.headers.<name>:");
+	for (size_t i = 0; i < ZIPLINE_HEADERS_N; i++) {
+		printf("    %s\n", ZIPLINE_HEADERS[i].name);
+	}
+}
+
 int cmd_set(int argc, char **argv) {
+	if (argc == 0) {
+		print_set_help();
+		return 0;
+	}
+	if (argc == 1) {
+		const char *ex = NULL, *def = NULL;
+		if (example_for_key(argv[0], &ex, &def) != 0) {
+			log_error("unknown key: %s", argv[0]);
+			log_info("run `grabit set` to see all keys");
+			return 1;
+		}
+		printf("%s = ", argv[0]);
+		print_example(ex, def);
+		printf("\n");
+		if (def) printf("(* = default)\n");
+
+		struct config c = {0};
+		const char *current = NULL;
+		bool loaded = config_load(&c) == 0;
+		if (loaded) current = config_get(&c, argv[0]);
+		printf("current: %s\n", current ? current : "(unset)");
+		if (loaded) config_free(&c);
+		return 0;
+	}
 	if (argc != 2) {
 		log_error("usage: grabit set <key> <value>");
 		return 1;
@@ -501,6 +652,37 @@ int cmd_get(int argc, char **argv) {
 			log_error("not set: %s", argv[0]);
 			rc = 1;
 		}
+	}
+	config_free(&c);
+	return rc;
+}
+
+int cmd_unset(int argc, char **argv) {
+	if (argc != 1) {
+		log_error("usage: grabit unset <key>");
+		return 1;
+	}
+	struct config c;
+	if (config_load(&c) != 0) return 1;
+
+	int rc = 0;
+	bool found = false;
+	for (size_t i = 0; i < c.n; i++) {
+		if (strcmp(c.kvs[i].key, argv[0]) != 0) continue;
+		free(c.kvs[i].key);
+		free(c.kvs[i].val);
+		c.kvs[i] = c.kvs[--c.n];
+		found = true;
+		break;
+	}
+	if (!found) {
+		log_error("not set: %s", argv[0]);
+		rc = 1;
+	} else if (config_save(&c) != 0) {
+		log_error("could not save config");
+		rc = 1;
+	} else {
+		log_info("unset %s", argv[0]);
 	}
 	config_free(&c);
 	return rc;

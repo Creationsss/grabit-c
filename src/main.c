@@ -3,6 +3,7 @@
 
 #define _XOPEN_SOURCE 700
 
+#include <ctype.h>
 #include <errno.h>
 #include <signal.h>
 #include <stdbool.h>
@@ -75,7 +76,8 @@ static int print_help(void) {
 	    "  -u                Upload screenshot to default service\n"
 	    "  --<service>       Upload to a specific service\n"
 	    "                    (zipline|nest|fakecrime|ez|guns|pixelvault)\n"
-	    "  -o, --output      Capture and print path to stdout\n"
+	    "  -o, --output, --save\n"
+	    "                    Capture and print path to stdout\n"
 	    "  -f <file>         Use <file> instead of taking a screenshot\n"
 	    "  --tesseract       Capture, OCR, copy text to clipboard\n"
 	    "  --record          Toggle screen recording (re-run to stop)\n"
@@ -87,7 +89,10 @@ static int print_help(void) {
 	    "\n"
 	    "Config:\n"
 	    "  set <key> <val>   Write a config key (validated)\n"
+	    "  set <key>         Print example value for that key\n"
+	    "  set               List all available keys\n"
 	    "  get [<key>]       Print one config key, or every set key\n"
+	    "  unset <key>       Remove a config key\n"
 	    "\n"
 	    "Misc:\n"
 	    "  --version         Print version and exit\n"
@@ -152,7 +157,7 @@ static char *build_capture_path(const struct args *a, struct config *cfg,
 	if (eff == ACTION_OUTPUT) {
 		save = true;
 	} else {
-		const char *si = config_get(cfg, "save_images");
+		const char *si = config_get(cfg, "save_captures");
 		save = si && strcmp(si, "true") == 0;
 	}
 
@@ -296,6 +301,11 @@ static char *capture_to_file(const struct args *a, struct config *cfg,
 
 	struct grabit_wl_state s;
 	if (grabit_wl_init(&s) != 0) {
+		notify_send(&(struct notify_opts){
+			.summary = "grabit",
+			.body    = "could not connect to wayland compositor",
+			.force   = true,
+		});
 		free(path);
 		clear_tmpfile();
 		return NULL;
@@ -314,7 +324,73 @@ static char *capture_to_file(const struct args *a, struct config *cfg,
 	return path;
 }
 
+static int upload_preflight(struct config *cfg, const struct args *a, const char **service_out) {
+	const char *service = a->service;
+	if (!service) service = config_get(cfg, "service");
+	if (!service || !service[0]) {
+		log_error("no service: pass --<service> or `grabit set service <name>`");
+		notify_send(&(struct notify_opts){
+			.summary = "grabit: setup needed",
+			.body    = "no upload service set — see terminal for details",
+			.force   = true,
+		});
+		return -1;
+	}
+	if (!upload_service_known(service)) {
+		log_error("unknown service: %s", service);
+		notify_send(&(struct notify_opts){
+			.summary = "grabit: setup needed",
+			.body    = "unknown service — see terminal for details",
+			.force   = true,
+		});
+		return -1;
+	}
+
+	char env_key[64];
+	snprintf(env_key, sizeof env_key, "GRABIT_%s_AUTH", service);
+	for (char *p = env_key + 7; *p; p++) *p = (char)toupper((unsigned char)*p);
+	const char *env_auth = getenv(env_key);
+	char cfg_key[64];
+	snprintf(cfg_key, sizeof cfg_key, "services.%s.auth", service);
+	const char *cfg_auth = config_get(cfg, cfg_key);
+	if ((!env_auth || !env_auth[0]) && (!cfg_auth || !cfg_auth[0])) {
+		log_error("no auth token for %s.", service);
+		log_error("  recommended (password-manager-friendly):");
+		log_error("    export %s=\"$(pass show grabit/%s)\"", env_key, service);
+		log_error("  or fallback (plaintext in config 0600):");
+		log_error("    grabit set %s <token>", cfg_key);
+		char body[128];
+		snprintf(body, sizeof body, "%s auth token not set — see terminal for details", service);
+		notify_send(&(struct notify_opts){
+			.summary = "grabit: setup needed",
+			.body    = body,
+			.force   = true,
+		});
+		return -1;
+	}
+
+	if (strcmp(service, "zipline") == 0) {
+		const char *domain = config_get(cfg, "services.zipline.domain");
+		if (!domain || !domain[0]) {
+			log_error("zipline requires services.zipline.domain (e.g. https://example.com/api/upload)");
+			log_error("    grabit set services.zipline.domain https://<host>/api/upload");
+			notify_send(&(struct notify_opts){
+				.summary = "grabit: setup needed",
+				.body    = "zipline domain not set — see terminal for details",
+				.force   = true,
+			});
+			return -1;
+		}
+	}
+
+	*service_out = service;
+	return 0;
+}
+
 static int run_upload(struct config *cfg, const struct args *a) {
+	const char *service = NULL;
+	if (upload_preflight(cfg, a, &service) != 0) return 1;
+
 	bool is_temp = false;
 	char *path = NULL;
 
@@ -327,20 +403,6 @@ static int run_upload(struct config *cfg, const struct args *a) {
 	} else {
 		path = capture_to_file(a, cfg, ACTION_UPLOAD, &is_temp);
 		if (!path) return 1;
-	}
-
-	const char *service = a->service;
-	if (!service) {
-		service = config_get(cfg, "service");
-		if (!service) {
-			log_error("no service: pass --<service> or `grabit set SERVICE <name>`");
-			if (is_temp) {
-				unlink(path);
-				clear_tmpfile();
-			}
-			free(path);
-			return 1;
-		}
 	}
 
 	struct upload_result r = {0};
@@ -399,12 +461,19 @@ static int run_copy(struct config *cfg, const struct args *a) {
 
 	int rc = clipboard_set_image_file(path);
 
-	struct notify_opts opts = {
-		.summary   = "Copied to clipboard",
-		.body      = path,
-		.icon_path = path,
-	};
-	if (rc == 0) notify_send(&opts);
+	if (rc == 0) {
+		notify_send(&(struct notify_opts){
+			.summary   = "Copied to clipboard",
+			.body      = path,
+			.icon_path = path,
+		});
+	} else {
+		notify_send(&(struct notify_opts){
+			.summary = "Clipboard write failed",
+			.body    = path,
+			.force   = true,
+		});
+	}
 
 	if (is_temp) {
 		unlink(path);
@@ -424,6 +493,11 @@ static int run_output(struct config *cfg, const struct args *a) {
 	if (!path) return 1;
 
 	puts(path);
+	notify_send(&(struct notify_opts){
+		.summary   = "Saved",
+		.body      = path,
+		.icon_path = path,
+	});
 	free(path);
 	return 0;
 }
@@ -432,6 +506,11 @@ static int run_ocr(struct config *cfg, const struct args *a) {
 	(void)cfg;
 	(void)a;
 	log_error("--tesseract not yet implemented.");
+	notify_send(&(struct notify_opts){
+		.summary = "grabit",
+		.body    = "--tesseract not yet implemented",
+		.force   = true,
+	});
 	return 1;
 }
 
@@ -439,13 +518,18 @@ static int run_record(struct config *cfg, const struct args *a) {
 	(void)cfg;
 	(void)a;
 	log_error("--record not yet implemented.");
+	notify_send(&(struct notify_opts){
+		.summary = "grabit",
+		.body    = "--record not yet implemented",
+		.force   = true,
+	});
 	return 1;
 }
 
 static int run(const struct args *a) {
 	struct config cfg;
 	if (config_load(&cfg) != 0) return 1;
-	notify_init(&cfg);
+	notify_init(&cfg, a->silent);
 
 	enum action eff = a->action;
 	if (eff == ACTION_NONE) {
@@ -483,8 +567,9 @@ int main(int argc, char **argv) {
 		const char *first = argv[1];
 		if (strcmp(first, "--version") == 0) return print_version();
 		if (strcmp(first, "--help") == 0 || strcmp(first, "-h") == 0) return print_help();
-		if (strcmp(first, "set") == 0) return cmd_set(argc - 2, argv + 2);
-		if (strcmp(first, "get") == 0) return cmd_get(argc - 2, argv + 2);
+		if (strcmp(first, "set")   == 0) return cmd_set(argc - 2, argv + 2);
+		if (strcmp(first, "get")   == 0) return cmd_get(argc - 2, argv + 2);
+		if (strcmp(first, "unset") == 0) return cmd_unset(argc - 2, argv + 2);
 	}
 
 	struct args a;

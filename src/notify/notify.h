@@ -8,7 +8,7 @@
 
 struct config;
 
-void notify_init(struct config *cfg);
+void notify_init(struct config *cfg, bool silent);
 
 struct notify_opts {
 	const char *summary;

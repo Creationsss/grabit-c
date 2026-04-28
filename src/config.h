@@ -28,5 +28,6 @@ bool        config_needs_setup(struct config *c);
 
 int cmd_set(int argc, char **argv);
 int cmd_get(int argc, char **argv);
+int cmd_unset(int argc, char **argv);
 
 #endif

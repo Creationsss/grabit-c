@@ -21,20 +21,31 @@
 #define EXPIRE_DEFAULT (-1)
 
 static bool g_show;
+static bool g_silent;
+static bool g_warned_bus;
+static bool g_warned_daemon;
 
-void notify_init(struct config *cfg) {
-	const char *v = cfg ? config_get(cfg, "SHOW_NOTIFICATIONS") : NULL;
-	g_show = v && strcmp(v, "true") == 0;
+void notify_init(struct config *cfg, bool silent) {
+	g_silent = silent;
+	g_warned_bus = false;
+	g_warned_daemon = false;
+	if (silent) { g_show = false; return; }
+	const char *v = cfg ? config_get(cfg, "notifications") : NULL;
+	g_show = !v || strcmp(v, "true") == 0;
 }
 
 void notify_send(const struct notify_opts *o) {
 	if (!o || !o->summary) return;
+	if (g_silent) return;
 	if (!g_show && !o->force) return;
 
 	sd_bus *bus = NULL;
 	int rc = sd_bus_open_user(&bus);
 	if (rc < 0) {
-		log_debug("notify: sd_bus_open_user: %s", strerror(-rc));
+		if (!g_warned_bus) {
+			log_warn("notifications unavailable: no user dbus session (%s)", strerror(-rc));
+			g_warned_bus = true;
+		}
 		return;
 	}
 
@@ -67,8 +78,17 @@ void notify_send(const struct notify_opts *o) {
 	// 2s timeout: notifications are best-effort; don't block if the daemon is stuck.
 	rc = sd_bus_call(bus, msg, 2000000, &err, &reply);
 	if (rc < 0) {
-		log_debug("notify: %s: %s", err.name ? err.name : "(no name)",
-		          err.message ? err.message : strerror(-rc));
+		if (!g_warned_daemon) {
+			const char *name = err.name ? err.name : "";
+			if (strstr(name, "ServiceUnknown") || strstr(name, "NameHasNoOwner")) {
+				log_warn("notifications unavailable: no notification daemon running "
+				         "(install dunst, mako, or similar)");
+			} else {
+				log_warn("notify: %s: %s", name[0] ? name : "(no name)",
+				         err.message ? err.message : strerror(-rc));
+			}
+			g_warned_daemon = true;
+		}
 	}
 	sd_bus_error_free(&err);
 	sd_bus_message_unref(reply);

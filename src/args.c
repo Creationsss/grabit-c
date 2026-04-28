@@ -34,7 +34,8 @@ int args_parse(int argc, char **argv, struct args *out) {
 		if (strcmp(arg, "-c") == 0)               { if (set_action(out, ACTION_COPY,   arg) != 0) return -1; continue; }
 		if (strcmp(arg, "-u") == 0)               { if (set_action(out, ACTION_UPLOAD, arg) != 0) return -1; continue; }
 		if (strcmp(arg, "-o") == 0 ||
-		    strcmp(arg, "--output") == 0)         { if (set_action(out, ACTION_OUTPUT, arg) != 0) return -1; continue; }
+		    strcmp(arg, "--output") == 0 ||
+		    strcmp(arg, "--save") == 0)           { if (set_action(out, ACTION_OUTPUT, arg) != 0) return -1; continue; }
 		if (strcmp(arg, "--tesseract") == 0)      { if (set_action(out, ACTION_OCR,    arg) != 0) return -1; continue; }
 		if (strcmp(arg, "--record") == 0)         { if (set_action(out, ACTION_RECORD, arg) != 0) return -1; continue; }
 
