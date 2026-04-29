@@ -78,7 +78,6 @@ void notify_send(const struct notify_opts *o) {
 
 	sd_bus_error err = SD_BUS_ERROR_NULL;
 	sd_bus_message *reply = NULL;
-	// 2s timeout: notifications are best-effort; don't block if the daemon is stuck.
 	rc = sd_bus_call(bus, msg, 2000000, &err, &reply);
 	if (rc < 0) {
 		if (!g_warned_daemon) {

@@ -17,6 +17,7 @@
 #include "record/pid.h"
 #include "record/ring.h"
 #include "region/region.h"
+#include "tray/tray.h"
 #include "upload/upload.h"
 #include "wl.h"
 
@@ -328,11 +329,6 @@ int record_toggle(struct config *cfg, const struct args *a) {
 	log_info("recording %dx%d (%zu output%s) @ %d fps → %s — re-run `grabit --record` to stop",
 			 layout.dst_w, layout.dst_h, layout.n, layout.n == 1 ? "" : "s",
 			 fps, output_path);
-	notify_send(&(struct notify_opts){
-		.summary = "Recording",
-		.body = "run grabit --record again to stop",
-		.force = true,
-	});
 
 	struct buf_pool pool = {0};
 	bool pool_used = !rec_layout_is_direct(&layout);
@@ -356,11 +352,13 @@ int record_toggle(struct config *cfg, const struct args *a) {
 	}
 
 	struct overlay_state *overlay = overlay_start(&s, r);
+	struct tray_state *tray = a->no_tray ? NULL : tray_start();
 
 	int64_t t0 = now_ns();
 	capture_loop(&s, &layout, pool_used ? &pool : NULL, fps, cursor, &ring);
 	int64_t t1 = now_ns();
 
+	tray_stop(tray);
 	overlay_stop(overlay);
 
 	ring_stop(&ring);

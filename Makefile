@@ -108,6 +108,8 @@ GRABIT_SRCS := \
 	src/record/pid.c \
 	src/record/compose.c \
 	src/record/overlay.c \
+	src/tray/sni.c \
+	src/tray/tray.c \
 	src/upload/upload.c \
 	$(OCR_SRC)
 
