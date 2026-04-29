@@ -60,7 +60,6 @@ package:linux-x86_64:
     - ./build/grabit --version
     - mv build/grabit grabit-x86_64-linux
     - sha256sum grabit-x86_64-linux | tee grabit-x86_64-linux.sha256
-    - file grabit-x86_64-linux
     - ldd grabit-x86_64-linux
   artifacts:
     paths:
