@@ -137,6 +137,10 @@ static int do_freeze_capture(struct grabit_wl_state *s, const char *path) {
 			goto cleanup;
 		}
 		captured = i + 1;
+		if (image_apply_transform(&frozen[i], s->outputs[i]->transform) != 0) {
+			log_warn("freeze: transform of %s failed; output may look skewed",
+					 s->outputs[i]->name ? s->outputs[i]->name : "?");
+		}
 	}
 
 	struct rect r;

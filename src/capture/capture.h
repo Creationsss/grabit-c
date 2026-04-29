@@ -22,6 +22,8 @@ struct image {
 
 void image_free(struct image *img);
 
+int image_apply_transform(struct image *img, int32_t transform);
+
 int capture_output_full(struct grabit_wl_state *s, struct grabit_output *o,
 						struct image *out);
 

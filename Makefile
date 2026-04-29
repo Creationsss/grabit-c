@@ -98,6 +98,7 @@ GRABIT_SRCS := \
 	src/wl.c \
 	src/capture/wlr_screencopy.c \
 	src/capture/png.c \
+	src/capture/transform.c \
 	src/clipboard/wlr_data_control.c \
 	src/notify/sd_bus.c \
 	src/region/wlr_layer.c \

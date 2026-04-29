@@ -227,6 +227,11 @@ int record_toggle(struct config *cfg, const struct args *a) {
 			log_warn("freeze capture of %s failed; selector will be dimmed",
 					 s.outputs[i]->name ? s.outputs[i]->name : "?");
 			memset(&frozen[i], 0, sizeof frozen[i]);
+			continue;
+		}
+		if (image_apply_transform(&frozen[i], s.outputs[i]->transform) != 0) {
+			log_warn("freeze transform of %s failed; output may look skewed",
+					 s.outputs[i]->name ? s.outputs[i]->name : "?");
 		}
 	}
 

@@ -102,16 +102,16 @@ static void apply_inverse_transform(cairo_t *cr, int32_t transform,
 	case WL_OUTPUT_TRANSFORM_NORMAL:
 		break;
 	case WL_OUTPUT_TRANSFORM_90:
-		cairo_translate(cr, 0, src_w);
-		cairo_rotate(cr, -M_PI / 2);
+		cairo_translate(cr, src_h, 0);
+		cairo_rotate(cr, M_PI / 2);
 		break;
 	case WL_OUTPUT_TRANSFORM_180:
 		cairo_translate(cr, src_w, src_h);
 		cairo_rotate(cr, M_PI);
 		break;
 	case WL_OUTPUT_TRANSFORM_270:
-		cairo_translate(cr, src_h, 0);
-		cairo_rotate(cr, M_PI / 2);
+		cairo_translate(cr, 0, src_w);
+		cairo_rotate(cr, -M_PI / 2);
 		break;
 	case WL_OUTPUT_TRANSFORM_FLIPPED:
 		cairo_translate(cr, src_w, 0);
