@@ -96,9 +96,6 @@ static bool transform_swaps_dims(int32_t t) {
 		   t == WL_OUTPUT_TRANSFORM_FLIPPED_270;
 }
 
-// Apply the inverse of `transform` so that source pixels (panel-native, src_w × src_h)
-// land in user-facing space at (0,0)..(visible_w, visible_h).
-// visible_w = src_h, visible_h = src_w when transform_swaps_dims(transform); else src_w × src_h.
 static void apply_inverse_transform(cairo_t *cr, int32_t transform,
 									int32_t src_w, int32_t src_h) {
 	switch (transform) {
