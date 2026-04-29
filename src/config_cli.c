@@ -22,10 +22,9 @@ struct example {
 static const struct example TOP_EXAMPLES[] = {
 	{"default_action", "upload|copy|save", "copy"},
 	{"notifications", "true|false", "true"},
-	{"sound", "true|false", "false"},
 	{"save_captures", "true|false", "false"},
 	{"save_dir", "~/Pictures", NULL},
-	{"editor", "satty", NULL},
+	{"editor", "satty | swappy | gimp | krita | kolourpaint", NULL},
 	{"filename", "%Y-%m-%d-%H-%M-%S", NULL},
 	{"filename_preset", "date|random|uuid|timestamp", "date"},
 	{"service", "zipline|nest|fakecrime|ez|guns|pixelvault", NULL},
@@ -135,6 +134,22 @@ static int example_for_key(const char *key, const char **example_out, const char
 			return 0;
 		}
 	}
+	if (strncmp(key, "sound.", 6) == 0) {
+		const char *leaf = key + 6;
+		if (strcmp(leaf, "enabled") == 0) {
+			*example_out = "true|false";
+			*def_out = "false";
+			return 0;
+		}
+		if (strcmp(leaf, "player") == 0) {
+			*example_out = "pw-play | paplay | play | aplay | <abs path>";
+			return 0;
+		}
+		if (strcmp(leaf, "file") == 0) {
+			*example_out = "<path to .oga/.wav file>";
+			return 0;
+		}
+	}
 	if (strncmp(key, "ocr.", 4) == 0) {
 		const char *leaf = key + 4;
 		if (strcmp(leaf, "tesseract") == 0) {
@@ -194,6 +209,10 @@ static void print_set_help(void) {
 	puts("  recording.max_size_mb");
 	puts("  recording.cursor");
 	puts("  recording.ffmpeg");
+	puts("");
+	puts("  sound.enabled");
+	puts("  sound.player");
+	puts("  sound.file");
 	puts("");
 	puts("  ocr.tesseract");
 }

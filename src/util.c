@@ -36,6 +36,28 @@ int grabit_xasprintf(char **out, const char *fmt, ...) {
 	return 0;
 }
 
+bool grabit_in_path(const char *bin) {
+	if (!bin || !bin[0]) return false;
+	if (strchr(bin, '/')) return access(bin, X_OK) == 0;
+	const char *path = getenv("PATH");
+	if (!path || !path[0]) return false;
+	char buf[4096];
+	const char *p = path;
+	while (*p) {
+		const char *colon = strchr(p, ':');
+		size_t len = colon ? (size_t)(colon - p) : strlen(p);
+		if (len > 0 && len + 1 + strlen(bin) + 1 <= sizeof buf) {
+			int n = snprintf(buf, sizeof buf, "%.*s/%s", (int)len, p, bin);
+			if (n > 0 && (size_t)n < sizeof buf && access(buf, X_OK) == 0) {
+				return true;
+			}
+		}
+		if (!colon) break;
+		p = colon + 1;
+	}
+	return false;
+}
+
 int grabit_shm_anon(const char *tag, size_t size) {
 	int fd = memfd_create(tag ? tag : "grabit", MFD_CLOEXEC);
 	if (fd < 0) {

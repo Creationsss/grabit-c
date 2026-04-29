@@ -106,7 +106,9 @@ GRABIT_SRCS := \
 	src/tray/sni.c \
 	src/tray/tray.c \
 	src/upload/upload.c \
-	src/ocr/tesseract.c
+	src/ocr/tesseract.c \
+	src/edit/edit.c \
+	src/sound/sound.c
 
 GRABIT_VENDOR_SRCS := \
 	src/vendor/tomlc99/toml.c

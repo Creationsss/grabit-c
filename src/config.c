@@ -21,7 +21,6 @@
 
 static const char *BOOL_KEYS[] = {
 	"notifications",
-	"sound",
 	"save_captures",
 	NULL,
 };
@@ -29,7 +28,6 @@ static const char *BOOL_KEYS[] = {
 static const char *KNOWN_TOP[] = {
 	"default_action",
 	"notifications",
-	"sound",
 	"save_captures",
 	"save_dir",
 	"editor",
@@ -190,7 +188,6 @@ static int flatten_table(toml_table_t *t, const char *prefix, struct config *c) 
 static void seed_defaults(struct config *c) {
 	kv_upsert(c, "default_action", "copy");
 	kv_upsert(c, "notifications", "true");
-	kv_upsert(c, "sound", "false");
 	kv_upsert(c, "save_captures", "false");
 }
 
@@ -406,6 +403,15 @@ static bool valid_ocr_key(const char *key) {
 	return false;
 }
 
+static bool valid_sound_key(const char *key) {
+	if (strncmp(key, "sound.", 6) != 0) return false;
+	const char *leaf = key + 6;
+	if (strcmp(leaf, "enabled") == 0) return true;
+	if (strcmp(leaf, "player") == 0) return true;
+	if (strcmp(leaf, "file") == 0) return true;
+	return false;
+}
+
 static bool valid_recording_key(const char *key) {
 	if (strncmp(key, "recording.", 10) != 0) return false;
 	const char *leaf = key + 10;
@@ -473,8 +479,13 @@ static int validate_int_in_range(const char *key, const char *value, long lo, lo
 
 int config_set(struct config *c, const char *key, const char *value) {
 	if (!valid_top_key(key) && !valid_service_key(key) && !valid_recording_key(key) &&
-		!valid_ocr_key(key)) {
+		!valid_ocr_key(key) && !valid_sound_key(key)) {
 		log_error("unknown config key: %s", key);
+		return -1;
+	}
+	if (strcmp(key, "sound.enabled") == 0 &&
+		strcmp(value, "true") != 0 && strcmp(value, "false") != 0) {
+		log_error("sound.enabled must be true or false");
 		return -1;
 	}
 	if (strcmp(key, "recording.fps") == 0 &&

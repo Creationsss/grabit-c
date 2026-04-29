@@ -16,6 +16,7 @@
 #include "capture/freeze.h"
 #include "clipboard/clipboard.h"
 #include "config.h"
+#include "edit/edit.h"
 #include "log.h"
 #include "mime.h"
 #include "notify/notify.h"
@@ -23,6 +24,7 @@
 #include "paths.h"
 #include "record/record.h"
 #include "region/region.h"
+#include "sound/sound.h"
 #include "upload/upload.h"
 #include "wl.h"
 
@@ -173,6 +175,10 @@ static int run_upload(struct config *cfg, const struct args *a) {
 		if (!path) return 1;
 	}
 
+	if (a->edit && grabit_edit_file(cfg, path) != 0) {
+		log_warn("edit failed; continuing with unedited file");
+	}
+
 	struct upload_result r = {0};
 	int rc = upload_perform(service, path, cfg, &r);
 
@@ -186,6 +192,7 @@ static int run_upload(struct config *cfg, const struct args *a) {
 			.icon_path = mime_is_image(m) ? path : NULL,
 		};
 		notify_send(&opts);
+		grabit_sound_play(cfg);
 		free(m);
 		log_info("%s", r.url);
 	} else {
@@ -227,6 +234,10 @@ static int run_copy(struct config *cfg, const struct args *a) {
 		if (!path) return 1;
 	}
 
+	if (a->edit && grabit_edit_file(cfg, path) != 0) {
+		log_warn("edit failed; continuing with unedited file");
+	}
+
 	int rc = clipboard_set_image_file(path);
 
 	if (rc == 0) {
@@ -235,6 +246,7 @@ static int run_copy(struct config *cfg, const struct args *a) {
 			.body = path,
 			.icon_path = path,
 		});
+		grabit_sound_play(cfg);
 	} else {
 		notify_send(&(struct notify_opts){
 			.summary = "Clipboard write failed",
@@ -260,12 +272,17 @@ static int run_output(struct config *cfg, const struct args *a) {
 	char *path = capture_to_file(a, cfg, ACTION_OUTPUT, &is_temp);
 	if (!path) return 1;
 
+	if (a->edit && grabit_edit_file(cfg, path) != 0) {
+		log_warn("edit failed; continuing with unedited file");
+	}
+
 	puts(path);
 	notify_send(&(struct notify_opts){
 		.summary = "Saved",
 		.body = path,
 		.icon_path = path,
 	});
+	grabit_sound_play(cfg);
 	free(path);
 	return 0;
 }
@@ -359,6 +376,7 @@ static int run_ocr(struct config *cfg, const struct args *a) {
 		.summary = "OCR Complete",
 		.body = preview,
 	});
+	grabit_sound_play(cfg);
 
 	free(text);
 	return 0;

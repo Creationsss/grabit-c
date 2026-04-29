@@ -4,6 +4,7 @@
 #ifndef GRABIT_UTIL_H
 #define GRABIT_UTIL_H
 
+#include <stdbool.h>
 #include <stddef.h>
 
 #define GRABIT_MAX_PIXEL_SIDE 16384
@@ -11,6 +12,8 @@
 int grabit_xasprintf(char **out, const char *fmt, ...) __attribute__((format(printf, 2, 3)));
 
 int grabit_shm_anon(const char *tag, size_t size);
+
+bool grabit_in_path(const char *bin);
 
 struct grabit_buf {
 	char *data;
