@@ -40,7 +40,8 @@ char *mime_for_file(const char *path) {
 	} else {
 		out = strdup(raw);
 		if (out) {
-			for (char *p = out; *p; p++) *p = (char)tolower((unsigned char)*p);
+			for (char *p = out; *p; p++)
+				*p = (char)tolower((unsigned char)*p);
 		} else {
 			out = fallback();
 		}

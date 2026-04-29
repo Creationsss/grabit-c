@@ -14,7 +14,7 @@ struct notify_opts {
 	const char *summary;
 	const char *body;
 	const char *icon_path;
-	bool        force;
+	bool force;
 };
 
 void notify_send(const struct notify_opts *o);

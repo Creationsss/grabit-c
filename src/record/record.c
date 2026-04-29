@@ -49,9 +49,9 @@ static void install_signal_handlers(struct prev_sigs *prev) {
 	struct sigaction sa = {0};
 	sa.sa_handler = on_record_signal;
 	sigemptyset(&sa.sa_mask);
-	sigaction(SIGINT,  &sa, &prev->sigint);
+	sigaction(SIGINT, &sa, &prev->sigint);
 	sigaction(SIGTERM, &sa, &prev->sigterm);
-	sigaction(SIGHUP,  &sa, &prev->sighup);
+	sigaction(SIGHUP, &sa, &prev->sighup);
 
 	struct sigaction ign = {0};
 	ign.sa_handler = SIG_IGN;
@@ -60,23 +60,23 @@ static void install_signal_handlers(struct prev_sigs *prev) {
 }
 
 static void restore_signal_handlers(const struct prev_sigs *prev) {
-	sigaction(SIGINT,  &prev->sigint,  NULL);
+	sigaction(SIGINT, &prev->sigint, NULL);
 	sigaction(SIGTERM, &prev->sigterm, NULL);
-	sigaction(SIGHUP,  &prev->sighup,  NULL);
+	sigaction(SIGHUP, &prev->sighup, NULL);
 	sigaction(SIGPIPE, &prev->sigpipe, NULL);
 }
 
 static struct grabit_output *output_with_most_overlap(struct grabit_wl_state *s,
-                                                      struct rect r,
-                                                      int *n_overlapping) {
+													  struct rect r,
+													  int *n_overlapping) {
 	struct grabit_output *best = NULL;
 	int64_t best_area = 0;
-	int     overlapping = 0;
+	int overlapping = 0;
 	for (size_t i = 0; i < s->n_outputs; i++) {
 		struct grabit_output *o = s->outputs[i];
 		int32_t lx = r.x > o->x ? r.x : o->x;
 		int32_t ly = r.y > o->y ? r.y : o->y;
-		int32_t rx = (r.x + r.w) < (o->x + o->logical_width)  ? (r.x + r.w) : (o->x + o->logical_width);
+		int32_t rx = (r.x + r.w) < (o->x + o->logical_width) ? (r.x + r.w) : (o->x + o->logical_width);
 		int32_t ry = (r.y + r.h) < (o->y + o->logical_height) ? (r.y + r.h) : (o->y + o->logical_height);
 		int32_t w = rx - lx, h = ry - ly;
 		if (w <= 0 || h <= 0) continue;
@@ -129,21 +129,21 @@ static char *build_record_path(struct config *cfg, const struct args *a) {
 }
 
 static int capture_loop(struct grabit_wl_state *s, struct grabit_output *out,
-                        int32_t x, int32_t y, int32_t w, int32_t h,
-                        int32_t expect_w, int32_t expect_h,
-                        int fps, bool cursor, struct ring *ring) {
+						int32_t x, int32_t y, int32_t w, int32_t h,
+						int32_t expect_w, int32_t expect_h,
+						int fps, bool cursor, struct ring *ring) {
 	int64_t period_ns = 1000000000 / fps;
-	int64_t start_ns  = now_ns();
+	int64_t start_ns = now_ns();
 	int64_t frame_idx = 0;
-	int     consec_fail = 0;
-	bool    warned_size = false;
+	int consec_fail = 0;
+	bool warned_size = false;
 
 	while (!g_stop) {
 		int64_t deadline = start_ns + frame_idx * period_ns;
 		int64_t cur = now_ns();
 		if (deadline > cur) {
 			struct timespec sl = {
-				.tv_sec  = (deadline - cur) / 1000000000,
+				.tv_sec = (deadline - cur) / 1000000000,
 				.tv_nsec = (deadline - cur) % 1000000000,
 			};
 			nanosleep(&sl, NULL);
@@ -168,8 +168,8 @@ static int capture_loop(struct grabit_wl_state *s, struct grabit_output *out,
 		if (img.width != expect_w || img.height != expect_h) {
 			if (!warned_size) {
 				log_warn("recording: frame size changed (%dx%d → %dx%d); "
-				         "dropping mismatched frames",
-				         expect_w, expect_h, img.width, img.height);
+						 "dropping mismatched frames",
+						 expect_w, expect_h, img.width, img.height);
 				warned_size = true;
 			}
 			image_free(&img);
@@ -178,8 +178,8 @@ static int capture_loop(struct grabit_wl_state *s, struct grabit_output *out,
 		}
 
 		struct frame f = {
-			.data   = img.bytes,
-			.width  = img.width,
+			.data = img.bytes,
+			.width = img.width,
 			.height = img.height,
 			.stride = img.stride,
 			.format = img.format,
@@ -207,8 +207,8 @@ int record_toggle(struct config *cfg, const struct args *a) {
 	if (grabit_wl_init(&s) != 0) {
 		notify_send(&(struct notify_opts){
 			.summary = "grabit",
-			.body    = "could not connect to wayland compositor",
-			.force   = true,
+			.body = "could not connect to wayland compositor",
+			.force = true,
 		});
 		return 1;
 	}
@@ -222,14 +222,15 @@ int record_toggle(struct config *cfg, const struct args *a) {
 	for (size_t i = 0; i < s.n_outputs; i++) {
 		if (capture_output_full(&s, s.outputs[i], &frozen[i]) != 0) {
 			log_warn("freeze capture of %s failed; selector will be dimmed",
-			         s.outputs[i]->name ? s.outputs[i]->name : "?");
+					 s.outputs[i]->name ? s.outputs[i]->name : "?");
 			memset(&frozen[i], 0, sizeof frozen[i]);
 		}
 	}
 
 	struct rect r;
 	int rc = region_select(&s, frozen, &r);
-	for (size_t i = 0; i < s.n_outputs; i++) image_free(&frozen[i]);
+	for (size_t i = 0; i < s.n_outputs; i++)
+		image_free(&frozen[i]);
 	free(frozen);
 
 	if (rc != 0 || r.w <= 0 || r.h <= 0) {
@@ -237,7 +238,7 @@ int record_toggle(struct config *cfg, const struct args *a) {
 		log_info("recording cancelled");
 		notify_send(&(struct notify_opts){
 			.summary = "Recording cancelled",
-			.force   = true,
+			.force = true,
 		});
 		return 0;
 	}
@@ -251,18 +252,24 @@ int record_toggle(struct config *cfg, const struct args *a) {
 	}
 	if (n_overlap > 1) {
 		log_warn("recording: selection spans %d monitors; recording only %s (largest overlap)",
-		         n_overlap, out->name ? out->name : "?");
+				 n_overlap, out->name ? out->name : "?");
 		notify_send(&(struct notify_opts){
 			.summary = "Recording: single monitor only",
-			.body    = "selection spans multiple monitors; recording the one with the largest overlap",
-			.force   = true,
+			.body = "selection spans multiple monitors; recording the one with the largest overlap",
+			.force = true,
 		});
 	}
 	int32_t lx = r.x - out->x, ly = r.y - out->y;
-	int32_t lw = r.w,          lh = r.h;
-	if (lx < 0) { lw += lx; lx = 0; }
-	if (ly < 0) { lh += ly; ly = 0; }
-	if (lx + lw > out->logical_width)  lw = out->logical_width  - lx;
+	int32_t lw = r.w, lh = r.h;
+	if (lx < 0) {
+		lw += lx;
+		lx = 0;
+	}
+	if (ly < 0) {
+		lh += ly;
+		ly = 0;
+	}
+	if (lx + lw > out->logical_width) lw = out->logical_width - lx;
 	if (ly + lh > out->logical_height) lh = out->logical_height - ly;
 	if (lw <= 0 || lh <= 0) {
 		log_error("region does not overlap any output");
@@ -277,9 +284,9 @@ int record_toggle(struct config *cfg, const struct args *a) {
 		return 1;
 	}
 
-	int fps             = read_fps(cfg);
-	int crf             = read_crf(cfg);
-	bool cursor         = read_cursor(cfg);
+	int fps = read_fps(cfg);
+	int crf = read_crf(cfg);
+	bool cursor = read_cursor(cfg);
 	const char *ffmpeg_bin = read_ffmpeg(cfg);
 
 	struct image first = {0};
@@ -291,9 +298,9 @@ int record_toggle(struct config *cfg, const struct args *a) {
 	}
 
 	pid_t ffmpeg_pid = -1;
-	int   ffmpeg_fd  = -1;
+	int ffmpeg_fd = -1;
 	if (spawn_ffmpeg(ffmpeg_bin, first.width, first.height, fps, crf,
-	                 output_path, &ffmpeg_pid, &ffmpeg_fd) != 0) {
+					 output_path, &ffmpeg_pid, &ffmpeg_fd) != 0) {
 		image_free(&first);
 		free(output_path);
 		grabit_wl_finish(&s);
@@ -322,9 +329,9 @@ int record_toggle(struct config *cfg, const struct args *a) {
 	struct ring ring;
 	ring_init(&ring);
 	struct enc_state es = {
-		.ring     = &ring,
+		.ring = &ring,
 		.write_fd = ffmpeg_fd,
-		.stop     = &g_stop,
+		.stop = &g_stop,
 	};
 
 	pthread_t enc;
@@ -343,8 +350,8 @@ int record_toggle(struct config *cfg, const struct args *a) {
 	}
 
 	struct frame f0 = {
-		.data   = first.bytes,
-		.width  = first.width,
+		.data = first.bytes,
+		.width = first.width,
 		.height = first.height,
 		.stride = first.stride,
 		.format = first.format,
@@ -353,16 +360,16 @@ int record_toggle(struct config *cfg, const struct args *a) {
 	ring_push(&ring, &f0);
 
 	log_info("recording %dx%d at (%d,%d) on %s @ %d fps → %s — re-run `grabit --record` to stop",
-	         lw, lh, lx, ly, out->name ? out->name : "?", fps, output_path);
+			 lw, lh, lx, ly, out->name ? out->name : "?", fps, output_path);
 	notify_send(&(struct notify_opts){
 		.summary = "Recording",
-		.body    = "press grabit --record again to stop",
-		.force   = true,
+		.body = "press grabit --record again to stop",
+		.force = true,
 	});
 
 	int64_t t0 = now_ns();
 	capture_loop(&s, out, lx, ly, lw, lh,
-	             f0.width, f0.height, fps, cursor, &ring);
+				 f0.width, f0.height, fps, cursor, &ring);
 	int64_t t1 = now_ns();
 
 	ring_stop(&ring);
@@ -376,24 +383,24 @@ int record_toggle(struct config *cfg, const struct args *a) {
 
 	double secs = (t1 - t0) / 1e9;
 	log_info("recording: %zu frames captured, %zu encoded, %zu dropped (%.2fs)",
-	         ring.pushed, ring.popped, ring.dropped, secs);
+			 ring.pushed, ring.popped, ring.dropped, secs);
 
 	if (wait_rc == 0) {
 		int max_mb = read_int_cfg(cfg, "recording.max_size_mb", 0, 0, 100000);
 		struct stat st;
 		if (max_mb > 0 && stat(output_path, &st) == 0 &&
-		    (long long)st.st_size > (long long)max_mb * 1024 * 1024) {
+			(long long)st.st_size > (long long)max_mb * 1024 * 1024) {
 			log_info("recording: %lld bytes > %d MiB, compressing...",
-			         (long long)st.st_size, max_mb);
+					 (long long)st.st_size, max_mb);
 			notify_send(&(struct notify_opts){
 				.summary = "Recording compressing",
-				.body    = output_path,
-				.force   = true,
+				.body = output_path,
+				.force = true,
 			});
 			if (compress_to_target_size(ffmpeg_bin, output_path, max_mb, secs) == 0) {
 				if (stat(output_path, &st) == 0) {
 					log_info("recording: compressed to %lld bytes",
-					         (long long)st.st_size);
+							 (long long)st.st_size);
 				}
 			} else {
 				log_warn("recording: compression failed; original kept");
@@ -402,17 +409,17 @@ int record_toggle(struct config *cfg, const struct args *a) {
 		log_info("saved: %s", output_path);
 		if (!upload_service) {
 			notify_send(&(struct notify_opts){
-				.summary   = "Recording saved",
-				.body      = output_path,
-				.force     = true,
+				.summary = "Recording saved",
+				.body = output_path,
+				.force = true,
 			});
 		}
 
 		if (upload_service) {
 			notify_send(&(struct notify_opts){
 				.summary = "Uploading recording",
-				.body    = upload_service,
-				.force   = true,
+				.body = upload_service,
+				.force = true,
 			});
 			struct upload_result ur = {0};
 			int up_rc = upload_perform(upload_service, output_path, cfg, &ur);
@@ -421,15 +428,15 @@ int record_toggle(struct config *cfg, const struct args *a) {
 				log_info("%s", ur.url);
 				notify_send(&(struct notify_opts){
 					.summary = "Recording uploaded",
-					.body    = ur.url,
-					.force   = true,
+					.body = ur.url,
+					.force = true,
 				});
 			} else {
 				log_error("recording upload failed; file kept at %s", output_path);
 				notify_send(&(struct notify_opts){
 					.summary = "Upload failed",
-					.body    = "recording kept on disk — see terminal",
-					.force   = true,
+					.body = "recording kept on disk — see terminal",
+					.force = true,
 				});
 			}
 			upload_result_free(&ur);
@@ -438,8 +445,8 @@ int record_toggle(struct config *cfg, const struct args *a) {
 		log_error("recording failed; output may be incomplete: %s", output_path);
 		notify_send(&(struct notify_opts){
 			.summary = "Recording failed",
-			.body    = "see terminal for details",
-			.force   = true,
+			.body = "see terminal for details",
+			.force = true,
 		});
 	}
 

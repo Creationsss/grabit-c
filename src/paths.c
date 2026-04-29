@@ -165,7 +165,7 @@ static char *resolve_dir(struct config *cfg, enum paths_dest dest) {
 }
 
 char *paths_build_output(struct config *cfg, const char *cli_template,
-                         const char *extension, enum paths_dest dest) {
+						 const char *extension, enum paths_dest dest) {
 	const char *tpl = cli_template;
 	if (!tpl) tpl = config_get(cfg, "filename");
 	if (!tpl) {
@@ -191,7 +191,10 @@ char *paths_build_output(struct config *cfg, const char *cli_template,
 	}
 
 	char *dir = resolve_dir(cfg, dest);
-	if (!dir) { free(clean); return NULL; }
+	if (!dir) {
+		free(clean);
+		return NULL;
+	}
 	if (paths_mkdir_p(dir) != 0) {
 		log_error("mkdir %s: %s", dir, strerror(errno));
 		free(dir);

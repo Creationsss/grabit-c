@@ -12,8 +12,8 @@ struct image;
 int grabit_png_write(const struct image *img, const char *path);
 
 int grabit_png_write_region(const struct image *img,
-                           int32_t x, int32_t y, int32_t w, int32_t h,
-                           const char *path);
+							int32_t x, int32_t y, int32_t w, int32_t h,
+							const char *path);
 
 struct png_slice {
 	const struct image *src;
@@ -22,7 +22,7 @@ struct png_slice {
 };
 
 int grabit_png_write_composite(int32_t dst_w, int32_t dst_h,
-                               const struct png_slice *slices, size_t n,
-                               const char *path);
+							   const struct png_slice *slices, size_t n,
+							   const char *path);
 
 #endif

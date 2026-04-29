@@ -25,9 +25,9 @@ static int waitpid_intr(pid_t pid, int *status, const char *what) {
 }
 
 int spawn_ffmpeg(const char *ffmpeg_bin,
-                 int width, int height, int fps, int crf,
-                 const char *output_path,
-                 pid_t *child_pid, int *write_fd) {
+				 int width, int height, int fps, int crf,
+				 const char *output_path,
+				 pid_t *child_pid, int *write_fd) {
 	int p[2];
 	if (pipe(p) != 0) {
 		log_error("pipe: %s", strerror(errno));
@@ -55,18 +55,29 @@ int spawn_ffmpeg(const char *ffmpeg_bin,
 
 		char *argv[] = {
 			(char *)ffmpeg_bin,
-			(char *)"-loglevel", (char *)"error",
+			(char *)"-loglevel",
+			(char *)"error",
 			(char *)"-y",
-			(char *)"-f", (char *)"rawvideo",
-			(char *)"-pix_fmt", (char *)"bgra",
-			(char *)"-s", size,
-			(char *)"-framerate", rate,
-			(char *)"-i", (char *)"-",
-			(char *)"-vf", (char *)"crop=trunc(iw/2)*2:trunc(ih/2)*2",
-			(char *)"-c:v", (char *)"libx264",
-			(char *)"-preset", (char *)"ultrafast",
-			(char *)"-pix_fmt", (char *)"yuv420p",
-			(char *)"-crf", crf_s,
+			(char *)"-f",
+			(char *)"rawvideo",
+			(char *)"-pix_fmt",
+			(char *)"bgra",
+			(char *)"-s",
+			size,
+			(char *)"-framerate",
+			rate,
+			(char *)"-i",
+			(char *)"-",
+			(char *)"-vf",
+			(char *)"crop=trunc(iw/2)*2:trunc(ih/2)*2",
+			(char *)"-c:v",
+			(char *)"libx264",
+			(char *)"-preset",
+			(char *)"ultrafast",
+			(char *)"-pix_fmt",
+			(char *)"yuv420p",
+			(char *)"-crf",
+			crf_s,
 			(char *)output_path,
 			NULL,
 		};
@@ -78,7 +89,7 @@ int spawn_ffmpeg(const char *ffmpeg_bin,
 
 	close(p[0]);
 	*child_pid = pid;
-	*write_fd  = p[1];
+	*write_fd = p[1];
 	return 0;
 }
 
@@ -88,8 +99,10 @@ int wait_ffmpeg(pid_t pid) {
 	if (WIFEXITED(status)) {
 		int code = WEXITSTATUS(status);
 		if (code == 0) return 0;
-		if (code == 127) log_error("ffmpeg not found in $PATH (install ffmpeg)");
-		else             log_error("ffmpeg exited with code %d", code);
+		if (code == 127)
+			log_error("ffmpeg not found in $PATH (install ffmpeg)");
+		else
+			log_error("ffmpeg exited with code %d", code);
 		return -1;
 	}
 	if (WIFSIGNALED(status)) {
@@ -100,11 +113,11 @@ int wait_ffmpeg(pid_t pid) {
 }
 
 int compress_to_target_size(const char *ffmpeg_bin, const char *path,
-                            int max_mb, double duration_secs) {
+							int max_mb, double duration_secs) {
 	if (duration_secs <= 0.0 || max_mb <= 0) return -1;
 
 	long long target_bytes = (long long)max_mb * 1024 * 1024;
-	long long target_bps   = (long long)((double)target_bytes * 8.0 / duration_secs * 0.95);
+	long long target_bps = (long long)((double)target_bytes * 8.0 / duration_secs * 0.95);
 	if (target_bps < 100000) target_bps = 100000;
 
 	struct stat orig;
@@ -127,15 +140,23 @@ int compress_to_target_size(const char *ffmpeg_bin, const char *path,
 
 		char *argv[] = {
 			(char *)ffmpeg_bin,
-			(char *)"-loglevel", (char *)"error",
+			(char *)"-loglevel",
+			(char *)"error",
 			(char *)"-y",
-			(char *)"-i", (char *)path,
-			(char *)"-c:v", (char *)"libx264",
-			(char *)"-b:v", bps_s,
-			(char *)"-maxrate", bps_s,
-			(char *)"-bufsize", bps_s,
-			(char *)"-preset", (char *)"medium",
-			(char *)"-pix_fmt", (char *)"yuv420p",
+			(char *)"-i",
+			(char *)path,
+			(char *)"-c:v",
+			(char *)"libx264",
+			(char *)"-b:v",
+			bps_s,
+			(char *)"-maxrate",
+			bps_s,
+			(char *)"-bufsize",
+			bps_s,
+			(char *)"-preset",
+			(char *)"medium",
+			(char *)"-pix_fmt",
+			(char *)"yuv420p",
 			(char *)"-an",
 			tmp_path,
 			NULL,

@@ -25,16 +25,16 @@ struct service {
 	const char *url;
 	const char *auth_name;
 	const char *json_path;
-	bool        auth_in_form;
+	bool auth_in_form;
 };
 
 static const struct service SERVICES[] = {
-	{ "zipline",    NULL,                                 "authorization", "files[0].url", false },
-	{ "nest",       "https://nest.rip/api/files/upload",  "Authorization", "fileURL",      false },
-	{ "fakecrime",  "https://upload.fakecrime.bio",       "Secret",        "url|data.url", false },
-	{ "ez",         "https://api.e-z.host/files",         "key",           "imageUrl",     false },
-	{ "guns",       "https://guns.lol/api/upload",        "key",           "link",         true  },
-	{ "pixelvault", "https://pixelvault.co/",             "Authorization", "resource",     false },
+	{"zipline", NULL, "authorization", "files[0].url", false},
+	{"nest", "https://nest.rip/api/files/upload", "Authorization", "fileURL", false},
+	{"fakecrime", "https://upload.fakecrime.bio", "Secret", "url|data.url", false},
+	{"ez", "https://api.e-z.host/files", "key", "imageUrl", false},
+	{"guns", "https://guns.lol/api/upload", "key", "link", true},
+	{"pixelvault", "https://pixelvault.co/", "Authorization", "resource", false},
 };
 static const size_t N_SERVICES = sizeof SERVICES / sizeof SERVICES[0];
 
@@ -45,7 +45,9 @@ static const struct service *find_service(const char *name) {
 	return NULL;
 }
 
-bool upload_service_known(const char *name) { return find_service(name) != NULL; }
+bool upload_service_known(const char *name) {
+	return find_service(name) != NULL;
+}
 
 int upload_preflight(struct config *cfg, const struct args *a, const char **service_out) {
 	const char *service = a->service;
@@ -54,8 +56,8 @@ int upload_preflight(struct config *cfg, const struct args *a, const char **serv
 		log_error("no service: pass --<service> or `grabit set service <name>`");
 		notify_send(&(struct notify_opts){
 			.summary = "grabit: setup needed",
-			.body    = "no upload service set — see terminal for details",
-			.force   = true,
+			.body = "no upload service set — see terminal for details",
+			.force = true,
 		});
 		return -1;
 	}
@@ -63,15 +65,16 @@ int upload_preflight(struct config *cfg, const struct args *a, const char **serv
 		log_error("unknown service: %s", service);
 		notify_send(&(struct notify_opts){
 			.summary = "grabit: setup needed",
-			.body    = "unknown service — see terminal for details",
-			.force   = true,
+			.body = "unknown service — see terminal for details",
+			.force = true,
 		});
 		return -1;
 	}
 
 	char env_key[64];
 	snprintf(env_key, sizeof env_key, "GRABIT_%s_AUTH", service);
-	for (char *p = env_key + 7; *p; p++) *p = (char)toupper((unsigned char)*p);
+	for (char *p = env_key + 7; *p; p++)
+		*p = (char)toupper((unsigned char)*p);
 	const char *env_auth = getenv(env_key);
 	char cfg_key[64];
 	snprintf(cfg_key, sizeof cfg_key, "services.%s.auth", service);
@@ -86,8 +89,8 @@ int upload_preflight(struct config *cfg, const struct args *a, const char **serv
 		snprintf(body, sizeof body, "%s auth token not set — see terminal for details", service);
 		notify_send(&(struct notify_opts){
 			.summary = "grabit: setup needed",
-			.body    = body,
-			.force   = true,
+			.body = body,
+			.force = true,
 		});
 		return -1;
 	}
@@ -99,8 +102,8 @@ int upload_preflight(struct config *cfg, const struct args *a, const char **serv
 			log_error("    grabit set services.zipline.domain https://<host>/api/upload");
 			notify_send(&(struct notify_opts){
 				.summary = "grabit: setup needed",
-				.body    = "zipline domain not set — see terminal for details",
-				.force   = true,
+				.body = "zipline domain not set — see terminal for details",
+				.force = true,
 			});
 			return -1;
 		}
@@ -182,8 +185,8 @@ static char *extract_url(struct json_object *root, const char *paths) {
 }
 
 static struct curl_slist *append_header(struct curl_slist *list,
-                                        const char *name, const char *value,
-                                        bool *oom) {
+										const char *name, const char *value,
+										bool *oom) {
 	size_t n = strlen(name) + strlen(value) + 3;
 	char *line = malloc(n);
 	if (!line) {
@@ -215,8 +218,10 @@ static void log_http_failure(long code, const char *body) {
 		log_error("upload failed (500): server error — try again later");
 		break;
 	default:
-		if (code == 0) log_error("upload failed: no response from server");
-		else           log_error("upload failed (HTTP %ld)", code);
+		if (code == 0)
+			log_error("upload failed: no response from server");
+		else
+			log_error("upload failed (HTTP %ld)", code);
 		if (body && body[0]) log_error("response: %s", body);
 		break;
 	}
@@ -231,7 +236,7 @@ void upload_result_free(struct upload_result *r) {
 }
 
 int upload_perform(const char *service_name, const char *file_path,
-                   struct config *cfg, struct upload_result *out) {
+				   struct config *cfg, struct upload_result *out) {
 	upload_result_free(out);
 
 	const struct service *svc = find_service(service_name);
@@ -251,7 +256,8 @@ int upload_perform(const char *service_name, const char *file_path,
 
 	char env_key[64];
 	snprintf(env_key, sizeof env_key, "GRABIT_%s_AUTH", svc->name);
-	for (char *p = env_key + 7; *p; p++) *p = (char)toupper((unsigned char)*p);
+	for (char *p = env_key + 7; *p; p++)
+		*p = (char)toupper((unsigned char)*p);
 	const char *auth = getenv(env_key);
 
 	char cfg_key[64];
@@ -352,8 +358,8 @@ int upload_perform(const char *service_name, const char *file_path,
 	}
 
 	struct json_object *root = out->body
-		? json_tokener_parse(out->body)
-		: NULL;
+								   ? json_tokener_parse(out->body)
+								   : NULL;
 	if (!root || json_object_get_type(root) != json_type_object) {
 		log_error("invalid JSON response from %s", svc->name);
 		if (out->body) log_error("response: %s", out->body);

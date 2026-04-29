@@ -20,8 +20,8 @@ static const char HEADER[] =
 static const char FIRST_LINE[] = "// SPDX-License-Identifier: AGPL-3.0-or-later";
 
 static bool g_apply;
-static int  g_missing;
-static int  g_applied;
+static int g_missing;
+static int g_applied;
 
 static bool is_source(const char *path) {
 	size_t n = strlen(path);

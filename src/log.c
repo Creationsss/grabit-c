@@ -14,10 +14,10 @@ static bool g_silent;
 static bool g_debug;
 static bool g_color;
 
-static const char *C_RED    = "";
+static const char *C_RED = "";
 static const char *C_YELLOW = "";
-static const char *C_CYAN   = "";
-static const char *C_RESET  = "";
+static const char *C_CYAN = "";
+static const char *C_RESET = "";
 
 void log_init(bool silent, bool debug) {
 	g_silent = silent;
@@ -30,10 +30,10 @@ void log_init(bool silent, bool debug) {
 
 	g_color = isatty(STDERR_FILENO) && getenv("NO_COLOR") == NULL;
 	if (g_color) {
-		C_RED    = "\033[31m";
+		C_RED = "\033[31m";
 		C_YELLOW = "\033[33m";
-		C_CYAN   = "\033[36m";
-		C_RESET  = "\033[0m";
+		C_CYAN = "\033[36m";
+		C_RESET = "\033[0m";
 	}
 }
 

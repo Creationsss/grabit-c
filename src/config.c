@@ -19,47 +19,66 @@
 #include "vendor/tomlc99/toml.h"
 
 static const char *BOOL_KEYS[] = {
-	"notifications", "sound", "save_captures", NULL,
+	"notifications",
+	"sound",
+	"save_captures",
+	NULL,
 };
 
 static const char *KNOWN_TOP[] = {
-	"default_action", "notifications", "sound", "save_captures",
-	"save_dir", "editor", "filename", "filename_preset", "service",
+	"default_action",
+	"notifications",
+	"sound",
+	"save_captures",
+	"save_dir",
+	"editor",
+	"filename",
+	"filename_preset",
+	"service",
 	NULL,
 };
 
 static const char *KNOWN_SERVICES[] = {
-	"zipline", "nest", "fakecrime", "ez", "guns", "pixelvault", NULL,
+	"zipline",
+	"nest",
+	"fakecrime",
+	"ez",
+	"guns",
+	"pixelvault",
+	NULL,
 };
 
-static const char *VALS_default_action[] = { "upload", "copy", "save", NULL };
-static const char *VALS_filename_preset[] = { "date", "random", "uuid", "timestamp", NULL };
+static const char *VALS_default_action[] = {"upload", "copy", "save", NULL};
+static const char *VALS_filename_preset[] = {"date", "random", "uuid", "timestamp", NULL};
 
-static const char *VALS_zl_format[]    = { "random", "date", "uuid", "name", "gfycat", NULL };
-static const char *VALS_zl_compress[]  = { "jpg", "png", "webp", "jxl", NULL };
-static const char *VALS_zl_true_only[] = { "true", NULL };
+static const char *VALS_zl_format[] = {"random", "date", "uuid", "name", "gfycat", NULL};
+static const char *VALS_zl_compress[] = {"jpg", "png", "webp", "jxl", NULL};
+static const char *VALS_zl_true_only[] = {"true", NULL};
 
-enum zl_kind { ZL_FREE, ZL_ENUM, ZL_INT, ZL_INT_PCT };
+enum zl_kind { ZL_FREE,
+			   ZL_ENUM,
+			   ZL_INT,
+			   ZL_INT_PCT };
 
 struct zl_hdr {
-	const char  *name;
+	const char *name;
 	enum zl_kind kind;
 	const char **allowed;
 };
 
 static const struct zl_hdr ZIPLINE_HEADERS[] = {
-	{ "x-zipline-deletes-at",                  ZL_FREE,    NULL },
-	{ "x-zipline-format",                      ZL_ENUM,    VALS_zl_format },
-	{ "x-zipline-image-compression-percent",   ZL_INT_PCT, NULL },
-	{ "x-zipline-image-compression-type",      ZL_ENUM,    VALS_zl_compress },
-	{ "x-zipline-password",                    ZL_FREE,    NULL },
-	{ "x-zipline-max-views",                   ZL_INT,     NULL },
-	{ "x-zipline-no-json",                     ZL_ENUM,    VALS_zl_true_only },
-	{ "x-zipline-original-name",               ZL_ENUM,    VALS_zl_true_only },
-	{ "x-zipline-folder",                      ZL_FREE,    NULL },
-	{ "x-zipline-filename",                    ZL_FREE,    NULL },
-	{ "x-zipline-domain",                      ZL_FREE,    NULL },
-	{ "x-zipline-file-extension",              ZL_FREE,    NULL },
+	{"x-zipline-deletes-at", ZL_FREE, NULL},
+	{"x-zipline-format", ZL_ENUM, VALS_zl_format},
+	{"x-zipline-image-compression-percent", ZL_INT_PCT, NULL},
+	{"x-zipline-image-compression-type", ZL_ENUM, VALS_zl_compress},
+	{"x-zipline-password", ZL_FREE, NULL},
+	{"x-zipline-max-views", ZL_INT, NULL},
+	{"x-zipline-no-json", ZL_ENUM, VALS_zl_true_only},
+	{"x-zipline-original-name", ZL_ENUM, VALS_zl_true_only},
+	{"x-zipline-folder", ZL_FREE, NULL},
+	{"x-zipline-filename", ZL_FREE, NULL},
+	{"x-zipline-domain", ZL_FREE, NULL},
+	{"x-zipline-file-extension", ZL_FREE, NULL},
 };
 static const size_t ZIPLINE_HEADERS_N = sizeof ZIPLINE_HEADERS / sizeof ZIPLINE_HEADERS[0];
 
@@ -77,13 +96,18 @@ static bool in_list(const char *needle, const char **list) {
 	return false;
 }
 
-static bool is_bool_key(const char *key) { return in_list(key, BOOL_KEYS); }
-static bool is_known_service(const char *s) { return in_list(s, KNOWN_SERVICES); }
+static bool is_bool_key(const char *key) {
+	return in_list(key, BOOL_KEYS);
+}
+static bool is_known_service(const char *s) {
+	return in_list(s, KNOWN_SERVICES);
+}
 
 static int kv_grow(struct config *c, size_t need) {
 	if (c->cap >= need) return 0;
 	size_t cap = c->cap ? c->cap : 16;
-	while (cap < need) cap *= 2;
+	while (cap < need)
+		cap *= 2;
 	struct kv *p = realloc(c->kvs, cap * sizeof *p);
 	if (!p) return -1;
 	c->kvs = p;
@@ -175,16 +199,16 @@ static int flatten_table(toml_table_t *t, const char *prefix, struct config *c) 
 
 static void seed_defaults(struct config *c) {
 	kv_upsert(c, "default_action", "copy");
-	kv_upsert(c, "notifications",  "true");
-	kv_upsert(c, "sound",          "false");
-	kv_upsert(c, "save_captures",    "false");
+	kv_upsert(c, "notifications", "true");
+	kv_upsert(c, "sound", "false");
+	kv_upsert(c, "save_captures", "false");
 }
 
 int config_load(struct config *c) {
 	memset(c, 0, sizeof *c);
 
 	const char *file = paths_config_file();
-	const char *dir  = paths_config_dir();
+	const char *dir = paths_config_dir();
 	if (paths_mkdir_p(dir) != 0) {
 		log_error("mkdir -p %s: %s", dir, strerror(errno));
 		return -1;
@@ -237,7 +261,8 @@ static int cmp_kv(const void *a, const void *b) {
 
 static int section_depth(const char *key) {
 	int d = 0;
-	for (const char *p = key; *p; p++) if (*p == '.') d++;
+	for (const char *p = key; *p; p++)
+		if (*p == '.') d++;
 	return d;
 }
 
@@ -296,8 +321,8 @@ int config_save(struct config *c) {
 			const char *last_dot = strrchr(key, '.');
 			size_t prefix_len = (size_t)(last_dot - key);
 			if (!current_section ||
-			    current_section_len != prefix_len ||
-			    strncmp(current_section, key, prefix_len) != 0) {
+				current_section_len != prefix_len ||
+				strncmp(current_section, key, prefix_len) != 0) {
 				if (out.len > 0) grabit_buf_putc(&out, '\n');
 				grabit_buf_putc(&out, '[');
 				char *prefix = strndup(key, prefix_len);
@@ -360,7 +385,9 @@ const char *config_get(struct config *c, const char *key) {
 	return e ? e->val : NULL;
 }
 
-static bool valid_top_key(const char *key) { return in_list(key, KNOWN_TOP); }
+static bool valid_top_key(const char *key) {
+	return in_list(key, KNOWN_TOP);
+}
 
 static bool valid_service_key(const char *key) {
 	if (strncmp(key, "services.", 9) != 0) return false;
@@ -375,7 +402,7 @@ static bool valid_service_key(const char *key) {
 	if (!is_known_service(svc)) return false;
 
 	const char *leaf = dot + 1;
-	if (strcmp(leaf, "auth") == 0)   return true;
+	if (strcmp(leaf, "auth") == 0) return true;
 	if (strcmp(leaf, "domain") == 0) return strcmp(svc, "zipline") == 0;
 	if (strcmp(leaf, "folder") == 0) return strcmp(svc, "nest") == 0;
 	if (strncmp(leaf, "headers.", 8) == 0) return strcmp(svc, "zipline") == 0 && leaf[8] != '\0';
@@ -385,11 +412,11 @@ static bool valid_service_key(const char *key) {
 static bool valid_recording_key(const char *key) {
 	if (strncmp(key, "recording.", 10) != 0) return false;
 	const char *leaf = key + 10;
-	if (strcmp(leaf, "fps") == 0)         return true;
-	if (strcmp(leaf, "crf") == 0)         return true;
+	if (strcmp(leaf, "fps") == 0) return true;
+	if (strcmp(leaf, "crf") == 0) return true;
 	if (strcmp(leaf, "max_size_mb") == 0) return true;
-	if (strcmp(leaf, "cursor") == 0)      return true;
-	if (strcmp(leaf, "ffmpeg") == 0)      return true;
+	if (strcmp(leaf, "cursor") == 0) return true;
+	if (strcmp(leaf, "ffmpeg") == 0) return true;
 	return false;
 }
 
@@ -417,13 +444,13 @@ int config_set(struct config *c, const char *key, const char *value) {
 		return -1;
 	}
 	if (strcmp(key, "recording.fps") == 0 &&
-	    validate_int_in_range(key, value, 1, 120) != 0) return -1;
+		validate_int_in_range(key, value, 1, 120) != 0) return -1;
 	if (strcmp(key, "recording.crf") == 0 &&
-	    validate_int_in_range(key, value, 0, 51) != 0) return -1;
+		validate_int_in_range(key, value, 0, 51) != 0) return -1;
 	if (strcmp(key, "recording.max_size_mb") == 0 &&
-	    validate_int_in_range(key, value, 0, 100000) != 0) return -1;
+		validate_int_in_range(key, value, 0, 100000) != 0) return -1;
 	if (strcmp(key, "recording.cursor") == 0 &&
-	    strcmp(value, "true") != 0 && strcmp(value, "false") != 0) {
+		strcmp(value, "true") != 0 && strcmp(value, "false") != 0) {
 		log_error("recording.cursor must be true or false");
 		return -1;
 	}
@@ -458,7 +485,7 @@ int config_set(struct config *c, const char *key, const char *value) {
 				if (!in_list(value, spec->allowed)) {
 					if (spec->allowed[0] && !spec->allowed[1]) {
 						log_error("%s must be \"%s\" (omit the header to disable)",
-						          hdr, spec->allowed[0]);
+								  hdr, spec->allowed[0]);
 					} else {
 						struct grabit_buf b = {0};
 						for (size_t i = 0; spec->allowed[i]; i++) {
@@ -473,7 +500,10 @@ int config_set(struct config *c, const char *key, const char *value) {
 				break;
 			case ZL_INT:
 			case ZL_INT_PCT: {
-				if (!*value) { log_error("%s must be an integer", hdr); return -1; }
+				if (!*value) {
+					log_error("%s must be an integer", hdr);
+					return -1;
+				}
 				char *end = NULL;
 				long n = strtol(value, &end, 10);
 				if (!end || *end != '\0') {
@@ -497,17 +527,22 @@ int config_set(struct config *c, const char *key, const char *value) {
 	char *normalized = NULL;
 	if (strcmp(key, "services.zipline.domain") == 0 && value && *value) {
 		bool has_scheme = strncmp(value, "http://", 7) == 0 ||
-		                  strncmp(value, "https://", 8) == 0;
+						  strncmp(value, "https://", 8) == 0;
 		size_t vlen = strlen(value);
-		while (vlen > 0 && value[vlen - 1] == '/') vlen--;
+		while (vlen > 0 && value[vlen - 1] == '/')
+			vlen--;
 		const char *suffix = "/api/upload";
 		size_t slen = strlen(suffix);
 		bool has_path = vlen >= slen && strncmp(value + vlen - slen, suffix, slen) == 0;
 		int rc;
-		if (has_scheme && has_path)      rc = grabit_xasprintf(&normalized, "%.*s", (int)vlen, value);
-		else if (has_scheme)             rc = grabit_xasprintf(&normalized, "%.*s/api/upload", (int)vlen, value);
-		else if (has_path)               rc = grabit_xasprintf(&normalized, "https://%.*s", (int)vlen, value);
-		else                             rc = grabit_xasprintf(&normalized, "https://%.*s/api/upload", (int)vlen, value);
+		if (has_scheme && has_path)
+			rc = grabit_xasprintf(&normalized, "%.*s", (int)vlen, value);
+		else if (has_scheme)
+			rc = grabit_xasprintf(&normalized, "%.*s/api/upload", (int)vlen, value);
+		else if (has_path)
+			rc = grabit_xasprintf(&normalized, "https://%.*s", (int)vlen, value);
+		else
+			rc = grabit_xasprintf(&normalized, "https://%.*s/api/upload", (int)vlen, value);
 		if (rc != 0) {
 			log_error("oom: config_set");
 			return -1;
@@ -528,18 +563,22 @@ bool config_needs_setup(struct config *c) {
 	return config_get(c, "default_action") == NULL;
 }
 
-struct example { const char *key; const char *example; const char *def; };
+struct example {
+	const char *key;
+	const char *example;
+	const char *def;
+};
 
 static const struct example TOP_EXAMPLES[] = {
-	{ "default_action",  "upload|copy|save",                          "copy" },
-	{ "notifications",   "true|false",                                "true" },
-	{ "sound",           "true|false",                                "false" },
-	{ "save_captures",   "true|false",                                "false" },
-	{ "save_dir",        "~/Pictures",                                NULL },
-	{ "editor",          "satty",                                     NULL },
-	{ "filename",        "%Y-%m-%d-%H-%M-%S",                         NULL },
-	{ "filename_preset", "date|random|uuid|timestamp",                "date" },
-	{ "service",         "zipline|nest|fakecrime|ez|guns|pixelvault", NULL },
+	{"default_action", "upload|copy|save", "copy"},
+	{"notifications", "true|false", "true"},
+	{"sound", "true|false", "false"},
+	{"save_captures", "true|false", "false"},
+	{"save_dir", "~/Pictures", NULL},
+	{"editor", "satty", NULL},
+	{"filename", "%Y-%m-%d-%H-%M-%S", NULL},
+	{"filename_preset", "date|random|uuid|timestamp", "date"},
+	{"service", "zipline|nest|fakecrime|ez|guns|pixelvault", NULL},
 };
 static const size_t TOP_EXAMPLES_N = sizeof TOP_EXAMPLES / sizeof TOP_EXAMPLES[0];
 
@@ -547,11 +586,11 @@ static const char *zl_header_example(const struct zl_hdr *h) {
 	static char buf[160];
 	switch (h->kind) {
 	case ZL_FREE:
-		if (strcmp(h->name, "x-zipline-deletes-at") == 0)     return "1d";
-		if (strcmp(h->name, "x-zipline-domain") == 0)         return "cdn1.example.com,cdn2.example.com";
+		if (strcmp(h->name, "x-zipline-deletes-at") == 0) return "1d";
+		if (strcmp(h->name, "x-zipline-domain") == 0) return "cdn1.example.com,cdn2.example.com";
 		if (strcmp(h->name, "x-zipline-file-extension") == 0) return ".png";
-		if (strcmp(h->name, "x-zipline-folder") == 0)         return "<folder-id>";
-		if (strcmp(h->name, "x-zipline-filename") == 0)       return "<override>";
+		if (strcmp(h->name, "x-zipline-folder") == 0) return "<folder-id>";
+		if (strcmp(h->name, "x-zipline-filename") == 0) return "<override>";
 		return "<string>";
 	case ZL_ENUM: {
 		size_t off = 0;
@@ -563,8 +602,10 @@ static const char *zl_header_example(const struct zl_hdr *h) {
 		}
 		return buf;
 	}
-	case ZL_INT:     return "<integer>";
-	case ZL_INT_PCT: return "0-100";
+	case ZL_INT:
+		return "<integer>";
+	case ZL_INT_PCT:
+		return "0-100";
 	}
 	return "";
 }
@@ -574,7 +615,7 @@ static int example_for_key(const char *key, const char **example_out, const char
 	for (size_t i = 0; i < TOP_EXAMPLES_N; i++) {
 		if (strcmp(TOP_EXAMPLES[i].key, key) == 0) {
 			*example_out = TOP_EXAMPLES[i].example;
-			*def_out     = TOP_EXAMPLES[i].def;
+			*def_out = TOP_EXAMPLES[i].def;
 			return 0;
 		}
 	}
@@ -583,21 +624,52 @@ static int example_for_key(const char *key, const char **example_out, const char
 		const char *dot = strchr(rest, '.');
 		if (!dot) return -1;
 		const char *leaf = dot + 1;
-		if (strcmp(leaf, "auth") == 0)   { *example_out = "<api-token>";              return 0; }
-		if (strcmp(leaf, "domain") == 0) { *example_out = "https://<host>/api/upload"; return 0; }
-		if (strcmp(leaf, "folder") == 0) { *example_out = "<folder-uuid>";             return 0; }
+		if (strcmp(leaf, "auth") == 0) {
+			*example_out = "<api-token>";
+			return 0;
+		}
+		if (strcmp(leaf, "domain") == 0) {
+			*example_out = "https://<host>/api/upload";
+			return 0;
+		}
+		if (strcmp(leaf, "folder") == 0) {
+			*example_out = "<folder-uuid>";
+			return 0;
+		}
 		if (strncmp(leaf, "headers.", 8) == 0) {
 			const struct zl_hdr *h = zl_find(leaf + 8);
-			if (h) { *example_out = zl_header_example(h); return 0; }
+			if (h) {
+				*example_out = zl_header_example(h);
+				return 0;
+			}
 		}
 	}
 	if (strncmp(key, "recording.", 10) == 0) {
 		const char *leaf = key + 10;
-		if (strcmp(leaf, "fps") == 0)         { *example_out = "1-120";  *def_out = "30"; return 0; }
-		if (strcmp(leaf, "crf") == 0)         { *example_out = "0-51";   *def_out = "23"; return 0; }
-		if (strcmp(leaf, "max_size_mb") == 0) { *example_out = "100 (0 to disable)"; return 0; }
-		if (strcmp(leaf, "cursor") == 0)      { *example_out = "true|false"; *def_out = "true"; return 0; }
-		if (strcmp(leaf, "ffmpeg") == 0)      { *example_out = "ffmpeg | /usr/bin/ffmpeg"; *def_out = "ffmpeg"; return 0; }
+		if (strcmp(leaf, "fps") == 0) {
+			*example_out = "1-120";
+			*def_out = "30";
+			return 0;
+		}
+		if (strcmp(leaf, "crf") == 0) {
+			*example_out = "0-51";
+			*def_out = "23";
+			return 0;
+		}
+		if (strcmp(leaf, "max_size_mb") == 0) {
+			*example_out = "100 (0 to disable)";
+			return 0;
+		}
+		if (strcmp(leaf, "cursor") == 0) {
+			*example_out = "true|false";
+			*def_out = "true";
+			return 0;
+		}
+		if (strcmp(leaf, "ffmpeg") == 0) {
+			*example_out = "ffmpeg | /usr/bin/ffmpeg";
+			*def_out = "ffmpeg";
+			return 0;
+		}
 	}
 	return -1;
 }
@@ -665,8 +737,10 @@ int cmd_set(int argc, char **argv) {
 		bool starred = print_example(ex, def);
 		printf("\n");
 		if (def) {
-			if (starred) printf("(* = default)\n");
-			else         printf("default: %s\n", def);
+			if (starred)
+				printf("(* = default)\n");
+			else
+				printf("default: %s\n", def);
 		}
 
 		struct config c = {0};
@@ -747,4 +821,3 @@ int cmd_unset(int argc, char **argv) {
 	config_free(&c);
 	return rc;
 }
-

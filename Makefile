@@ -140,6 +140,16 @@ test: $(CHECK_BIN)
 apply-headers: $(CHECK_BIN)
 	$(CHECK_BIN) --apply src
 
+FMT_SRCS := $(shell find src -path src/vendor -prune -o \( -name '*.c' -o -name '*.h' \) -print) tools/check_headers.c
+
+.PHONY: fmt
+fmt:
+	clang-format -i $(FMT_SRCS)
+
+.PHONY: fmt-check
+fmt-check:
+	clang-format --dry-run -Werror $(FMT_SRCS)
+
 SAN_BUILDDIR := build-san
 SAN_OBJS     := $(GRABIT_SRCS:%.c=$(SAN_BUILDDIR)/%.o)
 SAN_VOBJS    := $(GRABIT_VENDOR_SRCS:%.c=$(SAN_BUILDDIR)/%.o)

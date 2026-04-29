@@ -14,7 +14,7 @@ bool upload_service_known(const char *name);
 int upload_preflight(struct config *cfg, const struct args *a, const char **service_out);
 
 struct upload_result {
-	long  http_code;
+	long http_code;
 	char *url;
 	char *body;
 };
@@ -22,8 +22,8 @@ struct upload_result {
 void upload_result_free(struct upload_result *r);
 
 int upload_perform(const char *service_name,
-                   const char *file_path,
-                   struct config *cfg,
-                   struct upload_result *out);
+				   const char *file_path,
+				   struct config *cfg,
+				   struct upload_result *out);
 
 #endif

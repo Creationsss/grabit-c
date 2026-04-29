@@ -27,3 +27,13 @@ sanitize:
   script:
     - make sanitize
     - ./build-san/grabit --version
+
+fmt-check:
+  stage: test
+  image: debian:trixie-slim
+  before_script:
+    - apt-get update -qq
+    - DEBIAN_FRONTEND=noninteractive apt-get install -qq -y --no-install-recommends
+        make clang-format
+  script:
+    - make fmt-check

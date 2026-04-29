@@ -11,9 +11,9 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 #include <sys/mman.h>
 #include <unistd.h>
 
@@ -29,75 +29,75 @@
 struct ro_state;
 
 struct ro_output {
-	struct ro_state                  *st;
-	struct grabit_output             *go;
-	size_t                            idx;
+	struct ro_state *st;
+	struct grabit_output *go;
+	size_t idx;
 
-	struct wl_surface                *surface;
-	struct zwlr_layer_surface_v1     *layer_surface;
+	struct wl_surface *surface;
+	struct zwlr_layer_surface_v1 *layer_surface;
 
-	int32_t  width;          // logical
-	int32_t  height;         // logical
-	int32_t  pixel_width;    // logical * scale
-	int32_t  pixel_height;
-	int32_t  scale;
-	bool     configured;
+	int32_t width;		 // logical
+	int32_t height;		 // logical
+	int32_t pixel_width; // logical * scale
+	int32_t pixel_height;
+	int32_t scale;
+	bool configured;
 
-	int      stride;
-	size_t   buf_size;
-	void    *buf_data;
-	struct wl_buffer                 *buffer;
+	int stride;
+	size_t buf_size;
+	void *buf_data;
+	struct wl_buffer *buffer;
 
-	bool                              dirty;
-	struct wl_callback               *frame_cb;
+	bool dirty;
+	struct wl_callback *frame_cb;
 };
 
 struct ro_state {
-	struct grabit_wl_state                  *wls;
-	struct ro_output                 *outs;
-	size_t                            n_outs;
+	struct grabit_wl_state *wls;
+	struct ro_output *outs;
+	size_t n_outs;
 
-	struct wl_pointer                *pointer;
-	struct wl_keyboard               *keyboard;
+	struct wl_pointer *pointer;
+	struct wl_keyboard *keyboard;
 
-	struct wl_cursor_theme           *cursor_theme;
-	struct wl_cursor                 *cursor;
-	struct wl_surface                *cursor_surface;
+	struct wl_cursor_theme *cursor_theme;
+	struct wl_cursor *cursor;
+	struct wl_surface *cursor_surface;
 
-	struct xkb_context               *xkb_ctx;
-	struct xkb_keymap                *xkb_keymap;
-	struct xkb_state                 *xkb_state;
+	struct xkb_context *xkb_ctx;
+	struct xkb_keymap *xkb_keymap;
+	struct xkb_state *xkb_state;
 
-	struct ro_output                 *cursor_on;
-	int32_t                           cursor_x;
-	int32_t                           cursor_y;
+	struct ro_output *cursor_on;
+	int32_t cursor_x;
+	int32_t cursor_y;
 
-	bool                              dragging;
-	int32_t                           drag_x0;
-	int32_t                           drag_y0;
+	bool dragging;
+	int32_t drag_x0;
+	int32_t drag_y0;
 
-	bool                              has_selection;
-	int32_t                           sel_x;
-	int32_t                           sel_y;
-	int32_t                           sel_w;
-	int32_t                           sel_h;
+	bool has_selection;
+	int32_t sel_x;
+	int32_t sel_y;
+	int32_t sel_w;
+	int32_t sel_h;
 
-	bool                              finished;
-	bool                              cancelled;
+	bool finished;
+	bool cancelled;
 
-	const struct image               *frozen;
+	const struct image *frozen;
 };
 
 static int output_alloc_buffer(struct ro_output *o) {
 	o->scale = o->go->scale > 0 ? o->go->scale : 1;
-	o->pixel_width  = o->width  * o->scale;
+	o->pixel_width = o->width * o->scale;
 	o->pixel_height = o->height * o->scale;
 
 	if (o->pixel_width <= 0 || o->pixel_height <= 0 ||
-	    o->pixel_width > GRABIT_MAX_PIXEL_SIDE ||
-	    o->pixel_height > GRABIT_MAX_PIXEL_SIDE) {
+		o->pixel_width > GRABIT_MAX_PIXEL_SIDE ||
+		o->pixel_height > GRABIT_MAX_PIXEL_SIDE) {
 		log_error("region: layer buffer %dx%d out of range",
-		          o->pixel_width, o->pixel_height);
+				  o->pixel_width, o->pixel_height);
 		return -1;
 	}
 
@@ -118,7 +118,7 @@ static int output_alloc_buffer(struct ro_output *o) {
 
 	struct wl_shm_pool *pool = wl_shm_create_pool(o->st->wls->shm, fd, (int32_t)size);
 	o->buffer = wl_shm_pool_create_buffer(pool, 0, o->pixel_width, o->pixel_height, stride,
-	                                      WL_SHM_FORMAT_ARGB8888);
+										  WL_SHM_FORMAT_ARGB8888);
 	wl_shm_pool_destroy(pool);
 	close(fd);
 
@@ -142,8 +142,12 @@ static void output_free_buffer(struct ro_output *o) {
 	}
 }
 
-static int32_t i32max(int32_t a, int32_t b) { return a > b ? a : b; }
-static int32_t i32min(int32_t a, int32_t b) { return a < b ? a : b; }
+static int32_t i32max(int32_t a, int32_t b) {
+	return a > b ? a : b;
+}
+static int32_t i32min(int32_t a, int32_t b) {
+	return a < b ? a : b;
+}
 
 static void output_redraw(struct ro_output *o);
 
@@ -188,7 +192,8 @@ static void output_redraw(struct ro_output *o) {
 		if (cand->bytes && cand->width > 0 && cand->height > 0) {
 			frozen = cand;
 			cairo_format_t fmt = (frozen->format == WL_SHM_FORMAT_ARGB8888)
-				? CAIRO_FORMAT_ARGB32 : CAIRO_FORMAT_RGB24;
+									 ? CAIRO_FORMAT_ARGB32
+									 : CAIRO_FORMAT_RGB24;
 			fz = cairo_image_surface_create_for_data(
 				frozen->bytes, fmt, frozen->width, frozen->height, frozen->stride);
 			if (cairo_surface_status(fz) != CAIRO_STATUS_SUCCESS) {
@@ -202,7 +207,7 @@ static void output_redraw(struct ro_output *o) {
 	cairo_pattern_t *fz_pat = NULL;
 	if (fz) {
 		fz_pat = cairo_pattern_create_for_surface(fz);
-		double psx = frozen->width  > 0 ? (double)pw / (double)frozen->width  : 1.0;
+		double psx = frozen->width > 0 ? (double)pw / (double)frozen->width : 1.0;
 		double psy = frozen->height > 0 ? (double)ph / (double)frozen->height : 1.0;
 		cairo_matrix_t m;
 		cairo_matrix_init_scale(&m, 1.0 / psx, 1.0 / psy);
@@ -246,18 +251,18 @@ static void output_redraw(struct ro_output *o) {
 			cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
 			cairo_set_source_rgba(cr, 1, 1, 1, 0.9);
 			cairo_set_line_width(cr, (double)S);
-			double dashes[2] = { 4.0 * S, 4.0 * S };
+			double dashes[2] = {4.0 * S, 4.0 * S};
 			cairo_set_dash(cr, dashes, 2, 0);
 			double half = (double)S * 0.5;
 			cairo_rectangle(cr, (double)l + half, (double)t + half,
-			                (double)(r - l) - (double)S, (double)(b - t) - (double)S);
+							(double)(r - l) - (double)S, (double)(b - t) - (double)S);
 			cairo_stroke(cr);
 			cairo_set_dash(cr, NULL, 0, 0);
 
 			char dims[32];
 			snprintf(dims, sizeof dims, "%dx%d", o->st->sel_w, o->st->sel_h);
 			cairo_select_font_face(cr, "sans-serif",
-			                       CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
+								   CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
 			cairo_set_font_size(cr, 14.0 * S);
 			cairo_text_extents_t ext;
 			cairo_text_extents(cr, dims, &ext);
@@ -266,7 +271,7 @@ static void output_redraw(struct ro_output *o) {
 			double ty = (double)b - 8.0 * S;
 			cairo_set_source_rgba(cr, 0, 0, 0, 0.7);
 			cairo_rectangle(cr, tx - 4.0 * S, ty - ext.height - 2.0 * S,
-			                ext.width + 8.0 * S, ext.height + 6.0 * S);
+							ext.width + 8.0 * S, ext.height + 6.0 * S);
 			cairo_fill(cr);
 			cairo_set_source_rgba(cr, 1, 1, 1, 1);
 			cairo_move_to(cr, tx, ty);
@@ -289,7 +294,8 @@ static void output_redraw(struct ro_output *o) {
 }
 
 static void request_redraw_all(struct ro_state *st) {
-	for (size_t i = 0; i < st->n_outs; i++) output_request_redraw(&st->outs[i]);
+	for (size_t i = 0; i < st->n_outs; i++)
+		output_request_redraw(&st->outs[i]);
 }
 
 static void update_selection(struct ro_state *st) {
@@ -311,9 +317,9 @@ static void update_selection(struct ro_state *st) {
 }
 
 static void layer_surface_configure(void *data, struct zwlr_layer_surface_v1 *ls,
-                                    uint32_t serial, uint32_t w, uint32_t h) {
+									uint32_t serial, uint32_t w, uint32_t h) {
 	struct ro_output *o = data;
-	o->width  = (int32_t)w;
+	o->width = (int32_t)w;
 	o->height = (int32_t)h;
 	zwlr_layer_surface_v1_ack_configure(ls, serial);
 
@@ -331,12 +337,12 @@ static void layer_surface_closed(void *data, struct zwlr_layer_surface_v1 *ls) {
 	(void)ls;
 	struct ro_output *o = data;
 	o->st->cancelled = true;
-	o->st->finished  = true;
+	o->st->finished = true;
 }
 
 static const struct zwlr_layer_surface_v1_listener layer_surface_listener_g = {
 	.configure = layer_surface_configure,
-	.closed    = layer_surface_closed,
+	.closed = layer_surface_closed,
 };
 
 static struct ro_output *find_by_surface(struct ro_state *st, struct wl_surface *s) {
@@ -347,7 +353,7 @@ static struct ro_output *find_by_surface(struct ro_state *st, struct wl_surface 
 }
 
 static void pointer_enter(void *data, struct wl_pointer *p, uint32_t serial,
-                          struct wl_surface *surface, wl_fixed_t sx, wl_fixed_t sy) {
+						  struct wl_surface *surface, wl_fixed_t sx, wl_fixed_t sy) {
 	struct ro_state *st = data;
 	struct ro_output *o = find_by_surface(st, surface);
 	if (!o) return;
@@ -366,22 +372,25 @@ static void pointer_enter(void *data, struct wl_pointer *p, uint32_t serial,
 			wl_surface_set_buffer_scale(st->cursor_surface, scale);
 			wl_surface_attach(st->cursor_surface, buf, 0, 0);
 			wl_surface_damage_buffer(st->cursor_surface, 0, 0,
-			                         (int32_t)img->width, (int32_t)img->height);
+									 (int32_t)img->width, (int32_t)img->height);
 			wl_surface_commit(st->cursor_surface);
 		}
 	}
 }
 
 static void pointer_leave(void *data, struct wl_pointer *p, uint32_t serial,
-                          struct wl_surface *surface) {
-	(void)p; (void)serial; (void)surface;
+						  struct wl_surface *surface) {
+	(void)p;
+	(void)serial;
+	(void)surface;
 	struct ro_state *st = data;
 	st->cursor_on = NULL;
 }
 
 static void pointer_motion(void *data, struct wl_pointer *p, uint32_t time,
-                           wl_fixed_t sx, wl_fixed_t sy) {
-	(void)p; (void)time;
+						   wl_fixed_t sx, wl_fixed_t sy) {
+	(void)p;
+	(void)time;
 	struct ro_state *st = data;
 	if (!st->cursor_on) return;
 	st->cursor_x = st->cursor_on->go->x + wl_fixed_to_int(sx);
@@ -391,8 +400,10 @@ static void pointer_motion(void *data, struct wl_pointer *p, uint32_t time,
 }
 
 static void pointer_button(void *data, struct wl_pointer *p, uint32_t serial,
-                           uint32_t time, uint32_t button, uint32_t state) {
-	(void)p; (void)serial; (void)time;
+						   uint32_t time, uint32_t button, uint32_t state) {
+	(void)p;
+	(void)serial;
+	(void)time;
 	struct ro_state *st = data;
 
 	if (button == BTN_RIGHT && state == WL_POINTER_BUTTON_STATE_PRESSED) {
@@ -419,20 +430,24 @@ static void pointer_button(void *data, struct wl_pointer *p, uint32_t serial,
 }
 
 static void pointer_axis(void *data, struct wl_pointer *p, uint32_t time,
-                         uint32_t axis, wl_fixed_t value) {
-	(void)data; (void)p; (void)time; (void)axis; (void)value;
+						 uint32_t axis, wl_fixed_t value) {
+	(void)data;
+	(void)p;
+	(void)time;
+	(void)axis;
+	(void)value;
 }
 
 static const struct wl_pointer_listener pointer_listener_g = {
-	.enter  = pointer_enter,
-	.leave  = pointer_leave,
+	.enter = pointer_enter,
+	.leave = pointer_leave,
 	.motion = pointer_motion,
 	.button = pointer_button,
-	.axis   = pointer_axis,
+	.axis = pointer_axis,
 };
 
 static void keyboard_keymap(void *data, struct wl_keyboard *kb,
-                            uint32_t format, int32_t fd, uint32_t size) {
+							uint32_t format, int32_t fd, uint32_t size) {
 	(void)kb;
 	struct ro_state *st = data;
 	if (format != WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1) {
@@ -454,18 +469,27 @@ static void keyboard_keymap(void *data, struct wl_keyboard *kb,
 }
 
 static void keyboard_enter(void *data, struct wl_keyboard *kb, uint32_t serial,
-                           struct wl_surface *surface, struct wl_array *keys) {
-	(void)data; (void)kb; (void)serial; (void)surface; (void)keys;
+						   struct wl_surface *surface, struct wl_array *keys) {
+	(void)data;
+	(void)kb;
+	(void)serial;
+	(void)surface;
+	(void)keys;
 }
 
 static void keyboard_leave(void *data, struct wl_keyboard *kb, uint32_t serial,
-                           struct wl_surface *surface) {
-	(void)data; (void)kb; (void)serial; (void)surface;
+						   struct wl_surface *surface) {
+	(void)data;
+	(void)kb;
+	(void)serial;
+	(void)surface;
 }
 
 static void keyboard_key(void *data, struct wl_keyboard *kb, uint32_t serial,
-                         uint32_t time, uint32_t key, uint32_t state) {
-	(void)kb; (void)serial; (void)time;
+						 uint32_t time, uint32_t key, uint32_t state) {
+	(void)kb;
+	(void)serial;
+	(void)time;
 	struct ro_state *st = data;
 	if (state != WL_KEYBOARD_KEY_STATE_PRESSED) return;
 	if (!st->xkb_state) return;
@@ -485,27 +509,31 @@ static void keyboard_key(void *data, struct wl_keyboard *kb, uint32_t serial,
 }
 
 static void keyboard_modifiers(void *data, struct wl_keyboard *kb, uint32_t serial,
-                               uint32_t mods_depressed, uint32_t mods_latched,
-                               uint32_t mods_locked, uint32_t group) {
-	(void)kb; (void)serial;
+							   uint32_t mods_depressed, uint32_t mods_latched,
+							   uint32_t mods_locked, uint32_t group) {
+	(void)kb;
+	(void)serial;
 	struct ro_state *st = data;
 	if (st->xkb_state) {
 		xkb_state_update_mask(st->xkb_state, mods_depressed, mods_latched,
-		                      mods_locked, 0, 0, group);
+							  mods_locked, 0, 0, group);
 	}
 }
 
 static void keyboard_repeat_info(void *data, struct wl_keyboard *kb,
-                                 int32_t rate, int32_t delay) {
-	(void)data; (void)kb; (void)rate; (void)delay;
+								 int32_t rate, int32_t delay) {
+	(void)data;
+	(void)kb;
+	(void)rate;
+	(void)delay;
 }
 
 static const struct wl_keyboard_listener keyboard_listener_g = {
-	.keymap      = keyboard_keymap,
-	.enter       = keyboard_enter,
-	.leave       = keyboard_leave,
-	.key         = keyboard_key,
-	.modifiers   = keyboard_modifiers,
+	.keymap = keyboard_keymap,
+	.enter = keyboard_enter,
+	.leave = keyboard_leave,
+	.key = keyboard_key,
+	.modifiers = keyboard_modifiers,
 	.repeat_info = keyboard_repeat_info,
 };
 
@@ -519,12 +547,12 @@ int region_select(struct grabit_wl_state *s, const struct image *frozen, struct 
 		return -1;
 	}
 	if (!(s->seat_caps & WL_SEAT_CAPABILITY_POINTER) ||
-	    !(s->seat_caps & WL_SEAT_CAPABILITY_KEYBOARD)) {
+		!(s->seat_caps & WL_SEAT_CAPABILITY_KEYBOARD)) {
 		log_error("region: seat needs both pointer and keyboard");
 		return -1;
 	}
 
-	struct ro_state st = { .wls = s, .frozen = frozen };
+	struct ro_state st = {.wls = s, .frozen = frozen};
 	st.outs = calloc(s->n_outputs, sizeof *st.outs);
 	if (!st.outs) return -1;
 	st.n_outs = s->n_outputs;
@@ -536,7 +564,7 @@ int region_select(struct grabit_wl_state *s, const struct image *frozen, struct 
 		return -1;
 	}
 
-	st.pointer  = wl_seat_get_pointer(s->seat);
+	st.pointer = wl_seat_get_pointer(s->seat);
 	st.keyboard = wl_seat_get_keyboard(s->seat);
 	wl_pointer_add_listener(st.pointer, &pointer_listener_g, &st);
 	wl_keyboard_add_listener(st.keyboard, &keyboard_listener_g, &st);
@@ -550,8 +578,13 @@ int region_select(struct grabit_wl_state *s, const struct image *frozen, struct 
 		log_warn("region: no cursor theme found — cursor may be invisible");
 	} else {
 		const char *names[] = {
-			"crosshair", "tcross", "cross", "cell",
-			"left_ptr", "default", "arrow",
+			"crosshair",
+			"tcross",
+			"cross",
+			"cell",
+			"left_ptr",
+			"default",
+			"arrow",
 			NULL,
 		};
 		for (size_t i = 0; names[i] && !st.cursor; i++) {
@@ -577,13 +610,13 @@ int region_select(struct grabit_wl_state *s, const struct image *frozen, struct 
 			ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY,
 			"grabit-region");
 		zwlr_layer_surface_v1_add_listener(o->layer_surface,
-		                                   &layer_surface_listener_g, o);
+										   &layer_surface_listener_g, o);
 
 		zwlr_layer_surface_v1_set_anchor(o->layer_surface,
-			ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP    |
-			ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM |
-			ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT   |
-			ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT);
+										 ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP |
+											 ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM |
+											 ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT |
+											 ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT);
 		zwlr_layer_surface_v1_set_size(o->layer_surface, 0, 0);
 		zwlr_layer_surface_v1_set_exclusive_zone(o->layer_surface, -1);
 		zwlr_layer_surface_v1_set_keyboard_interactivity(
@@ -619,13 +652,13 @@ int region_select(struct grabit_wl_state *s, const struct image *frozen, struct 
 	free(st.outs);
 
 	if (st.cursor_surface) wl_surface_destroy(st.cursor_surface);
-	if (st.cursor_theme)   wl_cursor_theme_destroy(st.cursor_theme);
+	if (st.cursor_theme) wl_cursor_theme_destroy(st.cursor_theme);
 
-	if (st.pointer)    wl_pointer_release(st.pointer);
-	if (st.keyboard)   wl_keyboard_release(st.keyboard);
-	if (st.xkb_state)  xkb_state_unref(st.xkb_state);
+	if (st.pointer) wl_pointer_release(st.pointer);
+	if (st.keyboard) wl_keyboard_release(st.keyboard);
+	if (st.xkb_state) xkb_state_unref(st.xkb_state);
 	if (st.xkb_keymap) xkb_keymap_unref(st.xkb_keymap);
-	if (st.xkb_ctx)    xkb_context_unref(st.xkb_ctx);
+	if (st.xkb_ctx) xkb_context_unref(st.xkb_ctx);
 
 	wl_display_roundtrip(s->display);
 	return rc;

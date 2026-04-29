@@ -62,9 +62,9 @@ static int put_uuid_v4(struct grabit_buf *b) {
 	r[8] = (unsigned char)((r[8] & 0x3F) | 0x80);
 	char out[37];
 	snprintf(out, sizeof out,
-	         "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x",
-	         r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7],
-	         r[8], r[9], r[10], r[11], r[12], r[13], r[14], r[15]);
+			 "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x",
+			 r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7],
+			 r[8], r[9], r[10], r[11], r[12], r[13], r[14], r[15]);
 	return grabit_buf_puts(b, out);
 }
 
@@ -156,7 +156,7 @@ oom:
 
 static int filename_safe(unsigned char c) {
 	return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
-	       (c >= '0' && c <= '9') || c == '.' || c == '_' || c == '-';
+		   (c >= '0' && c <= '9') || c == '.' || c == '_' || c == '-';
 }
 
 char *template_sanitize(const char *s) {
@@ -183,7 +183,8 @@ char *template_sanitize(const char *s) {
 	if (!b.data) return strdup("");
 
 	size_t start = 0;
-	while (start < b.len && b.data[start] == '_') start++;
+	while (start < b.len && b.data[start] == '_')
+		start++;
 	if (start > 0) {
 		memmove(b.data, b.data + start, b.len - start + 1);
 		b.len -= start;

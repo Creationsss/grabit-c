@@ -5,11 +5,11 @@
 #define GRABIT_SDBUS_H
 
 #if defined(GRABIT_BUS_BASU)
-#  include <basu/sd-bus.h>
+#include <basu/sd-bus.h>
 #elif defined(GRABIT_BUS_ELOGIND)
-#  include <elogind/sd-bus.h>
+#include <elogind/sd-bus.h>
 #else
-#  include <systemd/sd-bus.h>
+#include <systemd/sd-bus.h>
 #endif
 
 #endif

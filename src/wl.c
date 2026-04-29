@@ -19,9 +19,12 @@
 #include "xdg-output-unstable-v1-client-protocol.h"
 
 static void output_geometry(void *data, struct wl_output *wo, int32_t x, int32_t y,
-                            int32_t pw, int32_t ph, int32_t subpixel,
-                            const char *make, const char *model, int32_t transform) {
-	(void)wo; (void)pw; (void)ph; (void)subpixel;
+							int32_t pw, int32_t ph, int32_t subpixel,
+							const char *make, const char *model, int32_t transform) {
+	(void)wo;
+	(void)pw;
+	(void)ph;
+	(void)subpixel;
 	struct grabit_output *o = data;
 	free(o->make);
 	free(o->model);
@@ -33,8 +36,9 @@ static void output_geometry(void *data, struct wl_output *wo, int32_t x, int32_t
 }
 
 static void output_mode(void *data, struct wl_output *wo, uint32_t flags,
-                        int32_t w, int32_t h, int32_t refresh) {
-	(void)wo; (void)refresh;
+						int32_t w, int32_t h, int32_t refresh) {
+	(void)wo;
+	(void)refresh;
 	struct grabit_output *o = data;
 	if (flags & WL_OUTPUT_MODE_CURRENT) {
 		o->width = w;
@@ -43,7 +47,8 @@ static void output_mode(void *data, struct wl_output *wo, uint32_t flags,
 }
 
 static void output_done(void *data, struct wl_output *wo) {
-	(void)data; (void)wo;
+	(void)data;
+	(void)wo;
 }
 
 static void output_scale(void *data, struct wl_output *wo, int32_t factor) {
@@ -60,15 +65,17 @@ static void output_name(void *data, struct wl_output *wo, const char *name) {
 }
 
 static void output_description(void *data, struct wl_output *wo, const char *desc) {
-	(void)data; (void)wo; (void)desc;
+	(void)data;
+	(void)wo;
+	(void)desc;
 }
 
 static const struct wl_output_listener wl_output_listener_g = {
-	.geometry    = output_geometry,
-	.mode        = output_mode,
-	.done        = output_done,
-	.scale       = output_scale,
-	.name        = output_name,
+	.geometry = output_geometry,
+	.mode = output_mode,
+	.done = output_done,
+	.scale = output_scale,
+	.name = output_name,
 	.description = output_description,
 };
 
@@ -79,16 +86,18 @@ static void seat_capabilities(void *data, struct wl_seat *seat, uint32_t caps) {
 }
 
 static void seat_name(void *data, struct wl_seat *seat, const char *name) {
-	(void)data; (void)seat; (void)name;
+	(void)data;
+	(void)seat;
+	(void)name;
 }
 
 static const struct wl_seat_listener seat_listener_g = {
 	.capabilities = seat_capabilities,
-	.name         = seat_name,
+	.name = seat_name,
 };
 
 static void xdg_output_logical_position(void *data, struct zxdg_output_v1 *xo,
-                                        int32_t x, int32_t y) {
+										int32_t x, int32_t y) {
 	(void)xo;
 	struct grabit_output *o = data;
 	o->x = x;
@@ -96,7 +105,7 @@ static void xdg_output_logical_position(void *data, struct zxdg_output_v1 *xo,
 }
 
 static void xdg_output_logical_size(void *data, struct zxdg_output_v1 *xo,
-                                    int32_t w, int32_t h) {
+									int32_t w, int32_t h) {
 	(void)xo;
 	struct grabit_output *o = data;
 	o->logical_width = w;
@@ -104,7 +113,8 @@ static void xdg_output_logical_size(void *data, struct zxdg_output_v1 *xo,
 }
 
 static void xdg_output_done(void *data, struct zxdg_output_v1 *xo) {
-	(void)data; (void)xo;
+	(void)data;
+	(void)xo;
 }
 
 static void xdg_output_xname(void *data, struct zxdg_output_v1 *xo, const char *name) {
@@ -115,16 +125,18 @@ static void xdg_output_xname(void *data, struct zxdg_output_v1 *xo, const char *
 }
 
 static void xdg_output_xdescription(void *data, struct zxdg_output_v1 *xo,
-                                    const char *desc) {
-	(void)data; (void)xo; (void)desc;
+									const char *desc) {
+	(void)data;
+	(void)xo;
+	(void)desc;
 }
 
 static const struct zxdg_output_v1_listener xdg_output_listener_g = {
 	.logical_position = xdg_output_logical_position,
-	.logical_size     = xdg_output_logical_size,
-	.done             = xdg_output_done,
-	.name             = xdg_output_xname,
-	.description      = xdg_output_xdescription,
+	.logical_size = xdg_output_logical_size,
+	.done = xdg_output_done,
+	.name = xdg_output_xname,
+	.description = xdg_output_xdescription,
 };
 
 static int outputs_push(struct grabit_wl_state *s, struct grabit_output *o) {
@@ -140,7 +152,7 @@ static int outputs_push(struct grabit_wl_state *s, struct grabit_output *o) {
 }
 
 static void registry_global(void *data, struct wl_registry *reg, uint32_t name,
-                            const char *interface, uint32_t version) {
+							const char *interface, uint32_t version) {
 	struct grabit_wl_state *s = data;
 
 	if (strcmp(interface, wl_shm_interface.name) == 0) {
@@ -207,11 +219,13 @@ static void registry_global(void *data, struct wl_registry *reg, uint32_t name,
 }
 
 static void registry_global_remove(void *data, struct wl_registry *reg, uint32_t name) {
-	(void)data; (void)reg; (void)name;
+	(void)data;
+	(void)reg;
+	(void)name;
 }
 
 static const struct wl_registry_listener registry_listener_g = {
-	.global        = registry_global,
+	.global = registry_global,
 	.global_remove = registry_global_remove,
 };
 
@@ -222,7 +236,7 @@ int grabit_wl_init(struct grabit_wl_state *s) {
 	if (!s->display) {
 		const char *wd = getenv("WAYLAND_DISPLAY");
 		log_error("could not connect to wayland (WAYLAND_DISPLAY=%s)",
-		          wd ? wd : "(unset)");
+				  wd ? wd : "(unset)");
 		return -1;
 	}
 
@@ -237,7 +251,7 @@ int grabit_wl_init(struct grabit_wl_state *s) {
 	}
 	if (!s->screencopy_manager) {
 		log_error("compositor doesn't advertise zwlr_screencopy_manager_v1 — "
-		          "grabit only supports wlroots-based compositors");
+				  "grabit only supports wlroots-based compositors");
 		goto fail;
 	}
 
@@ -258,9 +272,9 @@ int grabit_wl_init(struct grabit_wl_state *s) {
 		if (o->scale <= 0) o->scale = 1;
 		// fallback if xdg-output didn't fill in logical dims; bit 0 of wl_output.transform set => 90° rotation, swap w/h.
 		bool rotated = (o->transform & 1) != 0;
-		int32_t native_logical_w = (rotated ? o->height : o->width)  / o->scale;
-		int32_t native_logical_h = (rotated ? o->width  : o->height) / o->scale;
-		if (o->logical_width  <= 0) o->logical_width  = native_logical_w;
+		int32_t native_logical_w = (rotated ? o->height : o->width) / o->scale;
+		int32_t native_logical_h = (rotated ? o->width : o->height) / o->scale;
+		if (o->logical_width <= 0) o->logical_width = native_logical_w;
 		if (o->logical_height <= 0) o->logical_height = native_logical_h;
 	}
 
@@ -321,8 +335,8 @@ struct grabit_output *grabit_wl_output_at(struct grabit_wl_state *s, int32_t x, 
 	for (size_t i = 0; i < s->n_outputs; i++) {
 		struct grabit_output *o = s->outputs[i];
 		if (x >= o->x && y >= o->y &&
-		    x <  o->x + o->logical_width &&
-		    y <  o->y + o->logical_height)
+			x < o->x + o->logical_width &&
+			y < o->y + o->logical_height)
 			return o;
 	}
 	return NULL;

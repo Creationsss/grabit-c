@@ -13,15 +13,15 @@ int grabit_xasprintf(char **out, const char *fmt, ...) __attribute__((format(pri
 int grabit_shm_anon(const char *tag, size_t size);
 
 struct grabit_buf {
-	char  *data;
+	char *data;
 	size_t len;
 	size_t cap;
 };
 
-int  grabit_buf_grow(struct grabit_buf *b, size_t need);
-int  grabit_buf_putn(struct grabit_buf *b, const void *s, size_t n);
-int  grabit_buf_puts(struct grabit_buf *b, const char *s);
-int  grabit_buf_putc(struct grabit_buf *b, char c);
+int grabit_buf_grow(struct grabit_buf *b, size_t need);
+int grabit_buf_putn(struct grabit_buf *b, const void *s, size_t n);
+int grabit_buf_puts(struct grabit_buf *b, const char *s);
+int grabit_buf_putc(struct grabit_buf *b, char c);
 void grabit_buf_free(struct grabit_buf *b);
 
 #endif

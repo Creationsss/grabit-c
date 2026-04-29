@@ -38,10 +38,17 @@ int write_pid_file_excl(pid_t p) {
 	if (fd < 0) return -1;
 	char buf[32];
 	int n = snprintf(buf, sizeof buf, "%d\n", (int)p);
-	if (n < 0) { close(fd); unlink(PID_FILE); return -1; }
+	if (n < 0) {
+		close(fd);
+		unlink(PID_FILE);
+		return -1;
+	}
 	ssize_t w = write(fd, buf, (size_t)n);
 	close(fd);
-	if (w != n) { unlink(PID_FILE); return -1; }
+	if (w != n) {
+		unlink(PID_FILE);
+		return -1;
+	}
 	return 0;
 }
 

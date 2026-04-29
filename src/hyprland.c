@@ -27,7 +27,7 @@ static int connect_socket(void) {
 	char *path = NULL;
 	if (grabit_xasprintf(&path, "%s/hypr/%s/.socket.sock", xdg, his) != 0) return -1;
 
-	struct sockaddr_un addr = { .sun_family = AF_UNIX };
+	struct sockaddr_un addr = {.sun_family = AF_UNIX};
 	if (strlen(path) >= sizeof addr.sun_path) {
 		free(path);
 		return -1;

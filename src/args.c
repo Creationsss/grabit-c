@@ -11,15 +11,17 @@
 
 void args_pre_scan(int argc, char **argv, bool *silent, bool *debug) {
 	for (int i = 1; i < argc; i++) {
-		if (strcmp(argv[i], "--silent") == 0) *silent = true;
-		else if (strcmp(argv[i], "-d") == 0)  *debug = true;
+		if (strcmp(argv[i], "--silent") == 0)
+			*silent = true;
+		else if (strcmp(argv[i], "-d") == 0)
+			*debug = true;
 	}
 }
 
 static int set_action(struct args *a, enum action act, const char *flag) {
 	if (a->action == act) return 0;
 	if ((a->action == ACTION_RECORD && act == ACTION_OUTPUT) ||
-	    (a->action == ACTION_OUTPUT && act == ACTION_RECORD)) {
+		(a->action == ACTION_OUTPUT && act == ACTION_RECORD)) {
 		a->action = ACTION_RECORD;
 		a->no_upload = true;
 		return 0;
@@ -38,19 +40,46 @@ int args_parse(int argc, char **argv, struct args *out) {
 	for (int i = 1; i < argc; i++) {
 		const char *arg = argv[i];
 
-		if (strcmp(arg, "-c") == 0)               { if (set_action(out, ACTION_COPY,   arg) != 0) return -1; continue; }
-		if (strcmp(arg, "-u") == 0)               { if (set_action(out, ACTION_UPLOAD, arg) != 0) return -1; continue; }
+		if (strcmp(arg, "-c") == 0) {
+			if (set_action(out, ACTION_COPY, arg) != 0) return -1;
+			continue;
+		}
+		if (strcmp(arg, "-u") == 0) {
+			if (set_action(out, ACTION_UPLOAD, arg) != 0) return -1;
+			continue;
+		}
 		if (strcmp(arg, "-o") == 0 ||
-		    strcmp(arg, "--output") == 0 ||
-		    strcmp(arg, "--save") == 0)           { if (set_action(out, ACTION_OUTPUT, arg) != 0) return -1; continue; }
-		if (strcmp(arg, "--tesseract") == 0)      { if (set_action(out, ACTION_OCR,    arg) != 0) return -1; continue; }
-		if (strcmp(arg, "--record") == 0)         { if (set_action(out, ACTION_RECORD, arg) != 0) return -1; continue; }
+			strcmp(arg, "--output") == 0 ||
+			strcmp(arg, "--save") == 0) {
+			if (set_action(out, ACTION_OUTPUT, arg) != 0) return -1;
+			continue;
+		}
+		if (strcmp(arg, "--tesseract") == 0) {
+			if (set_action(out, ACTION_OCR, arg) != 0) return -1;
+			continue;
+		}
+		if (strcmp(arg, "--record") == 0) {
+			if (set_action(out, ACTION_RECORD, arg) != 0) return -1;
+			continue;
+		}
 
 		if (strcmp(arg, "-e") == 0 ||
-		    strcmp(arg, "--edit") == 0)           { out->edit = true; continue; }
-		if (strcmp(arg, "--no-tray") == 0)        { out->no_tray = true; continue; }
-		if (strcmp(arg, "--silent") == 0)         { out->silent = true; continue; }
-		if (strcmp(arg, "-d") == 0)               { out->debug = true; continue; }
+			strcmp(arg, "--edit") == 0) {
+			out->edit = true;
+			continue;
+		}
+		if (strcmp(arg, "--no-tray") == 0) {
+			out->no_tray = true;
+			continue;
+		}
+		if (strcmp(arg, "--silent") == 0) {
+			out->silent = true;
+			continue;
+		}
+		if (strcmp(arg, "-d") == 0) {
+			out->debug = true;
+			continue;
+		}
 
 		if (strcmp(arg, "-f") == 0) {
 			if (++i >= argc) {
@@ -101,7 +130,7 @@ int args_parse(int argc, char **argv, struct args *out) {
 	}
 
 	if (out->service && out->action != ACTION_UPLOAD &&
-	    out->action != ACTION_RECORD && out->action != ACTION_NONE) {
+		out->action != ACTION_RECORD && out->action != ACTION_NONE) {
 		log_error("--%s only makes sense with -u or --record", out->service);
 		return -1;
 	}

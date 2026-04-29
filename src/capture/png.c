@@ -48,16 +48,20 @@ int grabit_png_write(const struct image *img, const char *path) {
 }
 
 int grabit_png_write_region(const struct image *img,
-                           int32_t x, int32_t y, int32_t w, int32_t h,
-                           const char *path) {
+							int32_t x, int32_t y, int32_t w, int32_t h,
+							const char *path) {
 	if (!img || !img->bytes || !path) return -1;
 	if (x < 0 || y < 0 || w <= 0 || h <= 0) return -1;
 	if (x + w > img->width || y + h > img->height) return -1;
 
 	cairo_format_t fmt;
 	switch (img->format) {
-	case WL_SHM_FORMAT_XRGB8888: fmt = CAIRO_FORMAT_RGB24;  break;
-	case WL_SHM_FORMAT_ARGB8888: fmt = CAIRO_FORMAT_ARGB32; break;
+	case WL_SHM_FORMAT_XRGB8888:
+		fmt = CAIRO_FORMAT_RGB24;
+		break;
+	case WL_SHM_FORMAT_ARGB8888:
+		fmt = CAIRO_FORMAT_ARGB32;
+		break;
 	default:
 		log_warn("png: unexpected wl_shm format 0x%x; writing as RGB24", img->format);
 		fmt = CAIRO_FORMAT_RGB24;
@@ -99,26 +103,29 @@ int grabit_png_write_region(const struct image *img,
 
 static cairo_format_t image_cairo_format(uint32_t fmt) {
 	switch (fmt) {
-	case WL_SHM_FORMAT_XRGB8888: return CAIRO_FORMAT_RGB24;
-	case WL_SHM_FORMAT_ARGB8888: return CAIRO_FORMAT_ARGB32;
-	default:                     return CAIRO_FORMAT_RGB24;
+	case WL_SHM_FORMAT_XRGB8888:
+		return CAIRO_FORMAT_RGB24;
+	case WL_SHM_FORMAT_ARGB8888:
+		return CAIRO_FORMAT_ARGB32;
+	default:
+		return CAIRO_FORMAT_RGB24;
 	}
 }
 
 int grabit_png_write_composite(int32_t dst_w, int32_t dst_h,
-                               const struct png_slice *slices, size_t n,
-                               const char *path) {
+							   const struct png_slice *slices, size_t n,
+							   const char *path) {
 	if (!path || dst_w <= 0 || dst_h <= 0 || n == 0 || !slices) return -1;
 	if (dst_w > GRABIT_MAX_PIXEL_SIDE || dst_h > GRABIT_MAX_PIXEL_SIDE) {
 		log_error("png composite: %dx%d exceeds %d-px side cap",
-		          dst_w, dst_h, GRABIT_MAX_PIXEL_SIDE);
+				  dst_w, dst_h, GRABIT_MAX_PIXEL_SIDE);
 		return -1;
 	}
 
 	cairo_surface_t *dst = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, dst_w, dst_h);
 	if (cairo_surface_status(dst) != CAIRO_STATUS_SUCCESS) {
 		log_error("cairo composite dst: %s",
-		          cairo_status_to_string(cairo_surface_status(dst)));
+				  cairo_status_to_string(cairo_surface_status(dst)));
 		cairo_surface_destroy(dst);
 		return -1;
 	}
@@ -139,7 +146,7 @@ int grabit_png_write_composite(int32_t dst_w, int32_t dst_h,
 			s->src->bytes, fmt, s->src->width, s->src->height, s->src->stride);
 		if (cairo_surface_status(src) != CAIRO_STATUS_SUCCESS) {
 			log_warn("composite slice %zu: %s",
-			         i, cairo_status_to_string(cairo_surface_status(src)));
+					 i, cairo_status_to_string(cairo_surface_status(src)));
 			cairo_surface_destroy(src);
 			continue;
 		}

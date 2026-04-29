@@ -12,12 +12,12 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define BUS_DEST    "org.freedesktop.Notifications"
-#define BUS_PATH    "/org/freedesktop/Notifications"
-#define BUS_IFACE   "org.freedesktop.Notifications"
-#define BUS_METHOD  "Notify"
+#define BUS_DEST "org.freedesktop.Notifications"
+#define BUS_PATH "/org/freedesktop/Notifications"
+#define BUS_IFACE "org.freedesktop.Notifications"
+#define BUS_METHOD "Notify"
 
-#define APP_NAME    "grabit"
+#define APP_NAME "grabit"
 #define EXPIRE_DEFAULT (-1)
 
 static bool g_show;
@@ -29,7 +29,10 @@ void notify_init(struct config *cfg, bool silent) {
 	g_silent = silent;
 	g_warned_bus = false;
 	g_warned_daemon = false;
-	if (silent) { g_show = false; return; }
+	if (silent) {
+		g_show = false;
+		return;
+	}
 	const char *v = cfg ? config_get(cfg, "notifications") : NULL;
 	g_show = !v || strcmp(v, "true") == 0;
 }
@@ -51,15 +54,15 @@ void notify_send(const struct notify_opts *o) {
 
 	sd_bus_message *msg = NULL;
 	rc = sd_bus_message_new_method_call(bus, &msg,
-	                                    BUS_DEST, BUS_PATH, BUS_IFACE, BUS_METHOD);
+										BUS_DEST, BUS_PATH, BUS_IFACE, BUS_METHOD);
 	if (rc < 0) goto cleanup;
 
 	rc = sd_bus_message_append(msg, "susss",
-	                           APP_NAME,
-	                           (uint32_t)0,
-	                           o->icon_path ? o->icon_path : "",
-	                           o->summary,
-	                           o->body ? o->body : "");
+							   APP_NAME,
+							   (uint32_t)0,
+							   o->icon_path ? o->icon_path : "",
+							   o->summary,
+							   o->body ? o->body : "");
 	if (rc < 0) goto cleanup;
 
 	rc = sd_bus_message_append_strv(msg, NULL);
@@ -82,10 +85,10 @@ void notify_send(const struct notify_opts *o) {
 			const char *name = err.name ? err.name : "";
 			if (strstr(name, "ServiceUnknown") || strstr(name, "NameHasNoOwner")) {
 				log_warn("notifications unavailable: no notification daemon running "
-				         "(install dunst, mako, or similar)");
+						 "(install dunst, mako, or similar)");
 			} else {
 				log_warn("notify: %s: %s", name[0] ? name : "(no name)",
-				         err.message ? err.message : strerror(-rc));
+						 err.message ? err.message : strerror(-rc));
 			}
 			g_warned_daemon = true;
 		}

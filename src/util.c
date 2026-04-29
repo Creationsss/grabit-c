@@ -53,7 +53,8 @@ int grabit_shm_anon(const char *tag, size_t size) {
 int grabit_buf_grow(struct grabit_buf *b, size_t need) {
 	if (b->cap >= need) return 0;
 	size_t cap = b->cap ? b->cap : 256;
-	while (cap < need) cap *= 2;
+	while (cap < need)
+		cap *= 2;
 	char *p = realloc(b->data, cap);
 	if (!p) return -1;
 	b->data = p;

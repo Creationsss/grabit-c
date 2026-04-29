@@ -54,9 +54,9 @@ static void install_signal_handlers(void) {
 	sa.sa_handler = on_signal;
 	sigemptyset(&sa.sa_mask);
 	sa.sa_flags = 0;
-	sigaction(SIGINT,  &sa, NULL);
+	sigaction(SIGINT, &sa, NULL);
 	sigaction(SIGTERM, &sa, NULL);
-	sigaction(SIGHUP,  &sa, NULL);
+	sigaction(SIGHUP, &sa, NULL);
 }
 
 static int print_version(void) {
@@ -66,47 +66,47 @@ static int print_version(void) {
 
 static int print_help(void) {
 	fputs(
-	    "Usage: grabit [options]\n"
-	    "\n"
-	    "Capture & output:\n"
-	    "  -c                Copy screenshot to clipboard\n"
-	    "  -u                Upload screenshot to default service\n"
-	    "  --<service>       Upload to a specific service\n"
-	    "                    (zipline|nest|fakecrime|ez|guns|pixelvault)\n"
-	    "  -o, --output, --save\n"
-	    "                    Capture and print path to stdout\n"
-	    "  -f <file>         Use <file> instead of taking a screenshot\n"
-	    "  --tesseract       Capture, OCR, copy text to clipboard\n"
-	    "  --record          Toggle screen recording (re-run to stop)\n"
-	    "                    With --save: skip auto-upload even if default_action=upload\n"
-	    "                    With --<service>: upload to that service after recording\n"
-	    "  --no-tray         Skip SNI tray during recording\n"
-	    "  -e, --edit        Open the captured file in an editor first\n"
-	    "  --silent          Suppress notifications and sound\n"
-	    "  -d                Enable debug logging to stderr\n"
-	    "  --filename <tpl>  Per-run filename template\n"
-	    "\n"
-	    "Config:\n"
-	    "  set <key> <val>   Write a config key (validated)\n"
-	    "  set <key>         Print example value for that key\n"
-	    "  set               List all available keys\n"
-	    "  get [<key>]       Print one config key, or every set key\n"
-	    "  unset <key>       Remove a config key\n"
-	    "\n"
-	    "Misc:\n"
-	    "  --version         Print version and exit\n"
-	    "  --help            Print this help and exit\n"
-	    "\n"
-	    "Environment:\n"
-	    "  GRABIT_DEBUG=1            Same as -d\n"
-	    "  GRABIT_<SERVICE>_AUTH     Auth token (overrides config). Recommended:\n"
-	    "                            export GRABIT_ZIPLINE_AUTH=\"$(pass show grabit/zipline)\"\n",
-	    stdout);
+		"Usage: grabit [options]\n"
+		"\n"
+		"Capture & output:\n"
+		"  -c                Copy screenshot to clipboard\n"
+		"  -u                Upload screenshot to default service\n"
+		"  --<service>       Upload to a specific service\n"
+		"                    (zipline|nest|fakecrime|ez|guns|pixelvault)\n"
+		"  -o, --output, --save\n"
+		"                    Capture and print path to stdout\n"
+		"  -f <file>         Use <file> instead of taking a screenshot\n"
+		"  --tesseract       Capture, OCR, copy text to clipboard\n"
+		"  --record          Toggle screen recording (re-run to stop)\n"
+		"                    With --save: skip auto-upload even if default_action=upload\n"
+		"                    With --<service>: upload to that service after recording\n"
+		"  --no-tray         Skip SNI tray during recording\n"
+		"  -e, --edit        Open the captured file in an editor first\n"
+		"  --silent          Suppress notifications and sound\n"
+		"  -d                Enable debug logging to stderr\n"
+		"  --filename <tpl>  Per-run filename template\n"
+		"\n"
+		"Config:\n"
+		"  set <key> <val>   Write a config key (validated)\n"
+		"  set <key>         Print example value for that key\n"
+		"  set               List all available keys\n"
+		"  get [<key>]       Print one config key, or every set key\n"
+		"  unset <key>       Remove a config key\n"
+		"\n"
+		"Misc:\n"
+		"  --version         Print version and exit\n"
+		"  --help            Print this help and exit\n"
+		"\n"
+		"Environment:\n"
+		"  GRABIT_DEBUG=1            Same as -d\n"
+		"  GRABIT_<SERVICE>_AUTH     Auth token (overrides config). Recommended:\n"
+		"                            export GRABIT_ZIPLINE_AUTH=\"$(pass show grabit/zipline)\"\n",
+		stdout);
 	return 0;
 }
 
 static char *build_capture_path(const struct args *a, struct config *cfg,
-                                enum action eff, bool *is_temp) {
+								enum action eff, bool *is_temp) {
 	bool save;
 	if (eff == ACTION_OUTPUT) {
 		save = true;
@@ -130,7 +130,7 @@ static int do_freeze_capture(struct grabit_wl_state *s, const char *path) {
 	for (size_t i = 0; i < s->n_outputs; i++) {
 		if (capture_output_full(s, s->outputs[i], &frozen[i]) != 0) {
 			log_error("freeze: capture of %s failed",
-			          s->outputs[i]->name ? s->outputs[i]->name : "?");
+					  s->outputs[i]->name ? s->outputs[i]->name : "?");
 			goto cleanup;
 		}
 		captured = i + 1;
@@ -184,19 +184,21 @@ static int do_freeze_capture(struct grabit_wl_state *s, const char *path) {
 		if (iw <= 0 || ih <= 0) continue;
 
 		// buffer/logical ratio; wlr-screencopy returns post-transform buffer dims, so this stays correct for rotated/flipped/scaled outputs.
-		double sxr = o->logical_width  > 0
-			? (double)frozen[i].width  / (double)o->logical_width  : 1.0;
+		double sxr = o->logical_width > 0
+						 ? (double)frozen[i].width / (double)o->logical_width
+						 : 1.0;
 		double syr = o->logical_height > 0
-			? (double)frozen[i].height / (double)o->logical_height : 1.0;
+						 ? (double)frozen[i].height / (double)o->logical_height
+						 : 1.0;
 
 		struct png_slice *sl = &slices[n_slices++];
-		sl->src   = &frozen[i];
+		sl->src = &frozen[i];
 		sl->src_x = (int32_t)((ix0 - lx0) * sxr + 0.5);
 		sl->src_y = (int32_t)((iy0 - ly0) * syr + 0.5);
 		sl->src_w = (int32_t)(iw * sxr + 0.5);
 		sl->src_h = (int32_t)(ih * syr + 0.5);
 		if (sl->src_x + sl->src_w > frozen[i].width)
-			sl->src_w = frozen[i].width  - sl->src_x;
+			sl->src_w = frozen[i].width - sl->src_x;
 		if (sl->src_y + sl->src_h > frozen[i].height)
 			sl->src_h = frozen[i].height - sl->src_y;
 
@@ -215,13 +217,14 @@ static int do_freeze_capture(struct grabit_wl_state *s, const char *path) {
 
 cleanup:
 	free(slices);
-	for (size_t i = 0; i < captured; i++) image_free(&frozen[i]);
+	for (size_t i = 0; i < captured; i++)
+		image_free(&frozen[i]);
 	free(frozen);
 	return rc;
 }
 
 static char *capture_to_file(const struct args *a, struct config *cfg,
-                             enum action eff, bool *is_temp) {
+							 enum action eff, bool *is_temp) {
 	*is_temp = false;
 	char *path = build_capture_path(a, cfg, eff, is_temp);
 	if (!path) return NULL;
@@ -232,8 +235,8 @@ static char *capture_to_file(const struct args *a, struct config *cfg,
 	if (grabit_wl_init(&s) != 0) {
 		notify_send(&(struct notify_opts){
 			.summary = "grabit",
-			.body    = "could not connect to wayland compositor",
-			.force   = true,
+			.body = "could not connect to wayland compositor",
+			.force = true,
 		});
 		free(path);
 		clear_tmpfile();
@@ -279,8 +282,8 @@ static int run_upload(struct config *cfg, const struct args *a) {
 		char *m = mime_for_file(path);
 		const char *summary = mime_is_video(m) ? "Video uploaded" : "Uploaded";
 		struct notify_opts opts = {
-			.summary   = summary,
-			.body      = r.url,
+			.summary = summary,
+			.body = r.url,
 			.icon_path = mime_is_image(m) ? path : NULL,
 		};
 		notify_send(&opts);
@@ -296,8 +299,8 @@ static int run_upload(struct config *cfg, const struct args *a) {
 		}
 		struct notify_opts opts = {
 			.summary = "Upload failed",
-			.body    = body,
-			.force   = true,
+			.body = body,
+			.force = true,
 		};
 		notify_send(&opts);
 	}
@@ -329,15 +332,15 @@ static int run_copy(struct config *cfg, const struct args *a) {
 
 	if (rc == 0) {
 		notify_send(&(struct notify_opts){
-			.summary   = "Copied to clipboard",
-			.body      = path,
+			.summary = "Copied to clipboard",
+			.body = path,
 			.icon_path = path,
 		});
 	} else {
 		notify_send(&(struct notify_opts){
 			.summary = "Clipboard write failed",
-			.body    = path,
-			.force   = true,
+			.body = path,
+			.force = true,
 		});
 	}
 
@@ -360,8 +363,8 @@ static int run_output(struct config *cfg, const struct args *a) {
 
 	puts(path);
 	notify_send(&(struct notify_opts){
-		.summary   = "Saved",
-		.body      = path,
+		.summary = "Saved",
+		.body = path,
 		.icon_path = path,
 	});
 	free(path);
@@ -374,8 +377,8 @@ static int run_ocr(struct config *cfg, const struct args *a) {
 	log_error("--tesseract not yet implemented.");
 	notify_send(&(struct notify_opts){
 		.summary = "grabit",
-		.body    = "--tesseract not yet implemented",
-		.force   = true,
+		.body = "--tesseract not yet implemented",
+		.force = true,
 	});
 	return 1;
 }
@@ -392,18 +395,31 @@ static int run(const struct args *a) {
 	enum action eff = a->action;
 	if (eff == ACTION_NONE) {
 		const char *def = config_get(&cfg, "default_action");
-		if      (def && strcmp(def, "upload") == 0) eff = ACTION_UPLOAD;
-		else if (def && strcmp(def, "copy")   == 0) eff = ACTION_COPY;
-		else if (def && strcmp(def, "save")   == 0) eff = ACTION_OUTPUT;
+		if (def && strcmp(def, "upload") == 0)
+			eff = ACTION_UPLOAD;
+		else if (def && strcmp(def, "copy") == 0)
+			eff = ACTION_COPY;
+		else if (def && strcmp(def, "save") == 0)
+			eff = ACTION_OUTPUT;
 	}
 
 	int rc;
 	switch (eff) {
-	case ACTION_UPLOAD: rc = run_upload(&cfg, a); break;
-	case ACTION_COPY:   rc = run_copy(&cfg, a);   break;
-	case ACTION_OUTPUT: rc = run_output(&cfg, a); break;
-	case ACTION_OCR:    rc = run_ocr(&cfg, a);    break;
-	case ACTION_RECORD: rc = run_record(&cfg, a); break;
+	case ACTION_UPLOAD:
+		rc = run_upload(&cfg, a);
+		break;
+	case ACTION_COPY:
+		rc = run_copy(&cfg, a);
+		break;
+	case ACTION_OUTPUT:
+		rc = run_output(&cfg, a);
+		break;
+	case ACTION_OCR:
+		rc = run_ocr(&cfg, a);
+		break;
+	case ACTION_RECORD:
+		rc = run_record(&cfg, a);
+		break;
 	default:
 		log_error("no action specified — try -u, -c, -o, --record, or --tesseract");
 		log_info("(or set a default with: grabit set default_action upload)");
@@ -425,8 +441,8 @@ int main(int argc, char **argv) {
 		const char *first = argv[1];
 		if (strcmp(first, "--version") == 0) return print_version();
 		if (strcmp(first, "--help") == 0 || strcmp(first, "-h") == 0) return print_help();
-		if (strcmp(first, "set")   == 0) return cmd_set(argc - 2, argv + 2);
-		if (strcmp(first, "get")   == 0) return cmd_get(argc - 2, argv + 2);
+		if (strcmp(first, "set") == 0) return cmd_set(argc - 2, argv + 2);
+		if (strcmp(first, "get") == 0) return cmd_get(argc - 2, argv + 2);
 		if (strcmp(first, "unset") == 0) return cmd_unset(argc - 2, argv + 2);
 	}
 

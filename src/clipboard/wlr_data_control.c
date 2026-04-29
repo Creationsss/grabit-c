@@ -25,13 +25,14 @@
 
 struct clip_state {
 	const void *bytes;
-	size_t      size;
-	bool        cancelled;
+	size_t size;
+	bool cancelled;
 };
 
 static void source_send(void *data, struct zwlr_data_control_source_v1 *src,
-                        const char *mime, int32_t fd) {
-	(void)src; (void)mime;
+						const char *mime, int32_t fd) {
+	(void)src;
+	(void)mime;
 	struct clip_state *st = data;
 
 	signal(SIGPIPE, SIG_IGN);
@@ -57,13 +58,12 @@ static void source_cancelled(void *data, struct zwlr_data_control_source_v1 *src
 }
 
 static const struct zwlr_data_control_source_v1_listener source_listener_g = {
-	.send      = source_send,
+	.send = source_send,
 	.cancelled = source_cancelled,
 };
 
-__attribute__((noreturn))
-static void clip_child(const void *bytes, size_t size,
-                       const char *const *mimes, size_t n_mimes) {
+__attribute__((noreturn)) static void clip_child(const void *bytes, size_t size,
+												 const char *const *mimes, size_t n_mimes) {
 	setsid();
 
 	int devnull = open("/dev/null", O_RDWR | O_CLOEXEC);
@@ -87,7 +87,7 @@ static void clip_child(const void *bytes, size_t size,
 	struct zwlr_data_control_source_v1 *src =
 		zwlr_data_control_manager_v1_create_data_source(s.data_control_manager);
 
-	struct clip_state st = { .bytes = bytes, .size = size };
+	struct clip_state st = {.bytes = bytes, .size = size};
 	zwlr_data_control_source_v1_add_listener(src, &source_listener_g, &st);
 
 	for (size_t i = 0; i < n_mimes; i++) {
@@ -107,7 +107,7 @@ static void clip_child(const void *bytes, size_t size,
 }
 
 static int clipboard_set_bytes(const void *bytes, size_t size,
-                               const char *const *mimes, size_t n_mimes) {
+							   const char *const *mimes, size_t n_mimes) {
 	if (!bytes || size == 0 || n_mimes == 0) return -1;
 
 	{
@@ -151,8 +151,8 @@ int clipboard_set_text(const char *text) {
 		"TEXT",
 	};
 	return clipboard_set_bytes(text, strlen(text),
-	                           TEXT_MIMES,
-	                           sizeof TEXT_MIMES / sizeof TEXT_MIMES[0]);
+							   TEXT_MIMES,
+							   sizeof TEXT_MIMES / sizeof TEXT_MIMES[0]);
 }
 
 // 100 mib — well above any sane screenshot, well below stress.
@@ -177,7 +177,7 @@ int clipboard_set_image_file(const char *path) {
 	}
 	if ((size_t)sz > GRABIT_CLIP_MAX_FILE_SIZE) {
 		log_error("clipboard: file %s is %ld bytes, larger than %zu-byte cap",
-		          path, sz, GRABIT_CLIP_MAX_FILE_SIZE);
+				  path, sz, GRABIT_CLIP_MAX_FILE_SIZE);
 		fclose(f);
 		return -1;
 	}
@@ -200,8 +200,8 @@ int clipboard_set_image_file(const char *path) {
 		"image/png",
 	};
 	int rc = clipboard_set_bytes(buf, (size_t)sz,
-	                             IMAGE_MIMES,
-	                             sizeof IMAGE_MIMES / sizeof IMAGE_MIMES[0]);
+								 IMAGE_MIMES,
+								 sizeof IMAGE_MIMES / sizeof IMAGE_MIMES[0]);
 
 	free(buf);
 	return rc;

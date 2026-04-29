@@ -22,6 +22,6 @@ enum paths_dest {
 };
 
 char *paths_build_output(struct config *cfg, const char *cli_template,
-                         const char *extension, enum paths_dest dest);
+						 const char *extension, enum paths_dest dest);
 
 #endif

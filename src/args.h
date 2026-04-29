@@ -16,18 +16,18 @@ enum action {
 };
 
 struct args {
-	enum action  action;
-	bool         silent;
-	bool         debug;
-	bool         edit;
-	bool         no_tray;
-	bool         no_upload;
-	const char  *file;
-	const char  *service;
-	const char  *filename_tpl;
+	enum action action;
+	bool silent;
+	bool debug;
+	bool edit;
+	bool no_tray;
+	bool no_upload;
+	const char *file;
+	const char *service;
+	const char *filename_tpl;
 };
 
 void args_pre_scan(int argc, char **argv, bool *silent, bool *debug);
-int  args_parse(int argc, char **argv, struct args *out);
+int args_parse(int argc, char **argv, struct args *out);
 
 #endif
