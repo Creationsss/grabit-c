@@ -66,7 +66,8 @@ package:linux-x86_64-static:
         xkbcommon-dev xkbcommon-static \
         elogind-dev libcap-static
   script:
-    - make LDFLAGS="-static -static-libgcc -no-pie -Wl,--strip-all"
+    - make VERSION="${CI_COMMIT_TAG#v}" LDFLAGS="-static -static-libgcc -no-pie -Wl,--strip-all"
+    - ./build/grabit --version
     - mv build/grabit grabit-x86_64-linux
     - sha256sum grabit-x86_64-linux | tee grabit-x86_64-linux.sha256
     - file grabit-x86_64-linux
