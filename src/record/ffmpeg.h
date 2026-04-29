@@ -6,7 +6,7 @@
 
 #include <sys/types.h>
 
-int spawn_ffmpeg(const char *ffmpeg_bin,
+int spawn_ffmpeg(const char *ffmpeg_bin, const char *preset,
 				 int width, int height, int fps, int crf,
 				 const char *output_path,
 				 pid_t *child_pid, int *write_fd);

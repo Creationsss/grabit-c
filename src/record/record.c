@@ -11,6 +11,7 @@
 #include "log.h"
 #include "notify/notify.h"
 #include "paths.h"
+#include "record/compose.h"
 #include "record/ffmpeg.h"
 #include "record/pid.h"
 #include "record/ring.h"
@@ -21,6 +22,7 @@
 #include <errno.h>
 #include <pthread.h>
 #include <signal.h>
+
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -30,6 +32,7 @@
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
+#include <wayland-client.h>
 
 static volatile sig_atomic_t g_stop;
 
@@ -66,31 +69,6 @@ static void restore_signal_handlers(const struct prev_sigs *prev) {
 	sigaction(SIGPIPE, &prev->sigpipe, NULL);
 }
 
-static struct grabit_output *output_with_most_overlap(struct grabit_wl_state *s,
-													  struct rect r,
-													  int *n_overlapping) {
-	struct grabit_output *best = NULL;
-	int64_t best_area = 0;
-	int overlapping = 0;
-	for (size_t i = 0; i < s->n_outputs; i++) {
-		struct grabit_output *o = s->outputs[i];
-		int32_t lx = r.x > o->x ? r.x : o->x;
-		int32_t ly = r.y > o->y ? r.y : o->y;
-		int32_t rx = (r.x + r.w) < (o->x + o->logical_width) ? (r.x + r.w) : (o->x + o->logical_width);
-		int32_t ry = (r.y + r.h) < (o->y + o->logical_height) ? (r.y + r.h) : (o->y + o->logical_height);
-		int32_t w = rx - lx, h = ry - ly;
-		if (w <= 0 || h <= 0) continue;
-		overlapping++;
-		int64_t a = (int64_t)w * h;
-		if (a > best_area) {
-			best_area = a;
-			best = o;
-		}
-	}
-	if (n_overlapping) *n_overlapping = overlapping;
-	return best;
-}
-
 static int read_int_cfg(struct config *cfg, const char *key, int def, int lo, int hi) {
 	const char *v = config_get(cfg, key);
 	if (!v || !v[0]) return def;
@@ -105,7 +83,7 @@ static int read_fps(struct config *cfg) {
 }
 
 static int read_crf(struct config *cfg) {
-	return read_int_cfg(cfg, "recording.crf", 23, 0, 51);
+	return read_int_cfg(cfg, "recording.crf", 20, 0, 51);
 }
 
 static bool read_cursor(struct config *cfg) {
@@ -118,6 +96,11 @@ static const char *read_ffmpeg(struct config *cfg) {
 	return (v && v[0]) ? v : "ffmpeg";
 }
 
+static const char *read_preset(struct config *cfg) {
+	const char *v = config_get(cfg, "recording.preset");
+	return (v && v[0]) ? v : "fast";
+}
+
 static int64_t now_ns(void) {
 	struct timespec ts;
 	clock_gettime(CLOCK_MONOTONIC, &ts);
@@ -128,15 +111,12 @@ static char *build_record_path(struct config *cfg, const struct args *a) {
 	return paths_build_output(cfg, a->filename_tpl, ".mp4", PATHS_DEST_VIDEOS);
 }
 
-static int capture_loop(struct grabit_wl_state *s, struct grabit_output *out,
-						int32_t x, int32_t y, int32_t w, int32_t h,
-						int32_t expect_w, int32_t expect_h,
+static int capture_loop(struct grabit_wl_state *s, const struct rec_layout *layout,
 						int fps, bool cursor, struct ring *ring) {
 	int64_t period_ns = 1000000000 / fps;
 	int64_t start_ns = now_ns();
 	int64_t frame_idx = 0;
 	int consec_fail = 0;
-	bool warned_size = false;
 
 	while (!g_stop) {
 		int64_t deadline = start_ns + frame_idx * period_ns;
@@ -152,8 +132,8 @@ static int capture_loop(struct grabit_wl_state *s, struct grabit_output *out,
 			frame_idx = (cur - start_ns) / period_ns;
 		}
 
-		struct image img = {0};
-		if (capture_output_region(s, out, x, y, w, h, cursor, &img) != 0) {
+		void *frame_buf = NULL;
+		if (rec_layout_capture_frame(s, layout, cursor, &frame_buf) != 0) {
 			if (++consec_fail == 1) log_warn("recording: frame capture failed");
 			if (consec_fail > 30) {
 				log_error("recording: too many consecutive capture failures; stopping");
@@ -165,24 +145,12 @@ static int capture_loop(struct grabit_wl_state *s, struct grabit_output *out,
 		}
 		consec_fail = 0;
 
-		if (img.width != expect_w || img.height != expect_h) {
-			if (!warned_size) {
-				log_warn("recording: frame size changed (%dx%d → %dx%d); "
-						 "dropping mismatched frames",
-						 expect_w, expect_h, img.width, img.height);
-				warned_size = true;
-			}
-			image_free(&img);
-			frame_idx++;
-			continue;
-		}
-
 		struct frame f = {
-			.data = img.bytes,
-			.width = img.width,
-			.height = img.height,
-			.stride = img.stride,
-			.format = img.format,
+			.data = frame_buf,
+			.width = layout->dst_w,
+			.height = layout->dst_h,
+			.stride = layout->dst_stride,
+			.format = WL_SHM_FORMAT_ARGB8888,
 		};
 		ring_push(ring, &f);
 		frame_idx++;
@@ -243,35 +211,8 @@ int record_toggle(struct config *cfg, const struct args *a) {
 		return 0;
 	}
 
-	int n_overlap = 0;
-	struct grabit_output *out = output_with_most_overlap(&s, r, &n_overlap);
-	if (!out) {
-		log_error("no output covers the selected region");
-		grabit_wl_finish(&s);
-		return 1;
-	}
-	if (n_overlap > 1) {
-		log_warn("recording: selection spans %d monitors; recording only %s (largest overlap)",
-				 n_overlap, out->name ? out->name : "?");
-		notify_send(&(struct notify_opts){
-			.summary = "Recording: single monitor only",
-			.body = "selection spans multiple monitors; recording the one with the largest overlap",
-			.force = true,
-		});
-	}
-	int32_t lx = r.x - out->x, ly = r.y - out->y;
-	int32_t lw = r.w, lh = r.h;
-	if (lx < 0) {
-		lw += lx;
-		lx = 0;
-	}
-	if (ly < 0) {
-		lh += ly;
-		ly = 0;
-	}
-	if (lx + lw > out->logical_width) lw = out->logical_width - lx;
-	if (ly + lh > out->logical_height) lh = out->logical_height - ly;
-	if (lw <= 0 || lh <= 0) {
+	struct rec_layout layout = {0};
+	if (rec_layout_build(&s, r, &layout) != 0) {
 		log_error("region does not overlap any output");
 		grabit_wl_finish(&s);
 		return 1;
@@ -280,6 +221,7 @@ int record_toggle(struct config *cfg, const struct args *a) {
 	char *output_path = build_record_path(cfg, a);
 	if (!output_path) {
 		log_error("recording: could not build output path");
+		rec_layout_free(&layout);
 		grabit_wl_finish(&s);
 		return 1;
 	}
@@ -288,21 +230,14 @@ int record_toggle(struct config *cfg, const struct args *a) {
 	int crf = read_crf(cfg);
 	bool cursor = read_cursor(cfg);
 	const char *ffmpeg_bin = read_ffmpeg(cfg);
-
-	struct image first = {0};
-	if (capture_output_region(&s, out, lx, ly, lw, lh, cursor, &first) != 0) {
-		log_error("recording: initial capture failed");
-		free(output_path);
-		grabit_wl_finish(&s);
-		return 1;
-	}
+	const char *preset = read_preset(cfg);
 
 	pid_t ffmpeg_pid = -1;
 	int ffmpeg_fd = -1;
-	if (spawn_ffmpeg(ffmpeg_bin, first.width, first.height, fps, crf,
+	if (spawn_ffmpeg(ffmpeg_bin, preset, layout.dst_w, layout.dst_h, fps, crf,
 					 output_path, &ffmpeg_pid, &ffmpeg_fd) != 0) {
-		image_free(&first);
 		free(output_path);
+		rec_layout_free(&layout);
 		grabit_wl_finish(&s);
 		return 1;
 	}
@@ -316,8 +251,8 @@ int record_toggle(struct config *cfg, const struct args *a) {
 		close(ffmpeg_fd);
 		(void)wait_ffmpeg(ffmpeg_pid);
 		unlink(output_path);
-		image_free(&first);
 		free(output_path);
+		rec_layout_free(&layout);
 		grabit_wl_finish(&s);
 		return 1;
 	}
@@ -343,24 +278,15 @@ int record_toggle(struct config *cfg, const struct args *a) {
 		(void)wait_ffmpeg(ffmpeg_pid);
 		unlink_pid_file();
 		unlink(output_path);
-		image_free(&first);
 		free(output_path);
+		rec_layout_free(&layout);
 		grabit_wl_finish(&s);
 		return 1;
 	}
 
-	struct frame f0 = {
-		.data = first.bytes,
-		.width = first.width,
-		.height = first.height,
-		.stride = first.stride,
-		.format = first.format,
-	};
-	first.bytes = NULL;
-	ring_push(&ring, &f0);
-
-	log_info("recording %dx%d at (%d,%d) on %s @ %d fps → %s — re-run `grabit --record` to stop",
-			 lw, lh, lx, ly, out->name ? out->name : "?", fps, output_path);
+	log_info("recording %dx%d (%zu output%s) @ %d fps → %s — re-run `grabit --record` to stop",
+			 layout.dst_w, layout.dst_h, layout.n, layout.n == 1 ? "" : "s",
+			 fps, output_path);
 	notify_send(&(struct notify_opts){
 		.summary = "Recording",
 		.body = "press grabit --record again to stop",
@@ -368,8 +294,7 @@ int record_toggle(struct config *cfg, const struct args *a) {
 	});
 
 	int64_t t0 = now_ns();
-	capture_loop(&s, out, lx, ly, lw, lh,
-				 f0.width, f0.height, fps, cursor, &ring);
+	capture_loop(&s, &layout, fps, cursor, &ring);
 	int64_t t1 = now_ns();
 
 	ring_stop(&ring);
@@ -454,6 +379,7 @@ int record_toggle(struct config *cfg, const struct args *a) {
 	ring_destroy(&ring);
 	unlink_pid_file();
 	free(output_path);
+	rec_layout_free(&layout);
 	grabit_wl_finish(&s);
 	return wait_rc == 0 ? 0 : 1;
 }

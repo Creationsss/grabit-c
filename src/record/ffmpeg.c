@@ -24,7 +24,7 @@ static int waitpid_intr(pid_t pid, int *status, const char *what) {
 	return 0;
 }
 
-int spawn_ffmpeg(const char *ffmpeg_bin,
+int spawn_ffmpeg(const char *ffmpeg_bin, const char *preset,
 				 int width, int height, int fps, int crf,
 				 const char *output_path,
 				 pid_t *child_pid, int *write_fd) {
@@ -73,7 +73,7 @@ int spawn_ffmpeg(const char *ffmpeg_bin,
 			(char *)"-c:v",
 			(char *)"libx264",
 			(char *)"-preset",
-			(char *)"ultrafast",
+			(char *)preset,
 			(char *)"-pix_fmt",
 			(char *)"yuv420p",
 			(char *)"-crf",

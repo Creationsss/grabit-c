@@ -91,6 +91,7 @@ GRABIT_SRCS := \
 	src/record/ring.c \
 	src/record/ffmpeg.c \
 	src/record/pid.c \
+	src/record/compose.c \
 	src/upload/upload.c
 
 GRABIT_VENDOR_SRCS := \

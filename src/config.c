@@ -417,8 +417,22 @@ static bool valid_recording_key(const char *key) {
 	if (strcmp(leaf, "max_size_mb") == 0) return true;
 	if (strcmp(leaf, "cursor") == 0) return true;
 	if (strcmp(leaf, "ffmpeg") == 0) return true;
+	if (strcmp(leaf, "preset") == 0) return true;
 	return false;
 }
+
+static const char *VALS_x264_preset[] = {
+	"ultrafast",
+	"superfast",
+	"veryfast",
+	"faster",
+	"fast",
+	"medium",
+	"slow",
+	"slower",
+	"veryslow",
+	NULL,
+};
 
 static int validate_int_in_range(const char *key, const char *value, long lo, long hi) {
 	if (!*value) {
@@ -452,6 +466,11 @@ int config_set(struct config *c, const char *key, const char *value) {
 	if (strcmp(key, "recording.cursor") == 0 &&
 		strcmp(value, "true") != 0 && strcmp(value, "false") != 0) {
 		log_error("recording.cursor must be true or false");
+		return -1;
+	}
+	if (strcmp(key, "recording.preset") == 0 && !in_list(value, VALS_x264_preset)) {
+		log_error("recording.preset must be one of "
+				  "ultrafast|superfast|veryfast|faster|fast|medium|slow|slower|veryslow");
 		return -1;
 	}
 	if (strcmp(key, "default_action") == 0 && !in_list(value, VALS_default_action)) {
@@ -653,7 +672,7 @@ static int example_for_key(const char *key, const char **example_out, const char
 		}
 		if (strcmp(leaf, "crf") == 0) {
 			*example_out = "0-51";
-			*def_out = "23";
+			*def_out = "20";
 			return 0;
 		}
 		if (strcmp(leaf, "max_size_mb") == 0) {
@@ -668,6 +687,11 @@ static int example_for_key(const char *key, const char **example_out, const char
 		if (strcmp(leaf, "ffmpeg") == 0) {
 			*example_out = "ffmpeg | /usr/bin/ffmpeg";
 			*def_out = "ffmpeg";
+			return 0;
+		}
+		if (strcmp(leaf, "preset") == 0) {
+			*example_out = "ultrafast|superfast|veryfast|faster|fast|medium|slow|slower|veryslow";
+			*def_out = "fast";
 			return 0;
 		}
 	}
@@ -716,6 +740,7 @@ static void print_set_help(void) {
 	puts("");
 	puts("  recording.fps");
 	puts("  recording.crf");
+	puts("  recording.preset");
 	puts("  recording.max_size_mb");
 	puts("  recording.cursor");
 	puts("  recording.ffmpeg");
