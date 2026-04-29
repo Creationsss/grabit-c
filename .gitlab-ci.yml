@@ -8,8 +8,19 @@ default:
         libcairo2-dev libxkbcommon-dev libmagic-dev
         libcurl4-openssl-dev libjson-c-dev libsystemd-dev
 
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_TAG
+
 stages:
   - test
+  - package
+  - release
+
+variables:
+  PACKAGE_REGISTRY_URL: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/grabit/${CI_COMMIT_TAG}"
 
 build:
   stage: test
@@ -37,3 +48,68 @@ fmt-check:
         make clang-format
   script:
     - make fmt-check
+
+package:linux-x86_64-static:
+  stage: package
+  image: alpine:3.20
+  rules:
+    - if: $CI_COMMIT_TAG
+  before_script:
+    - |
+      apk add --no-cache build-base pkgconf \
+        wayland-dev wayland-protocols \
+        cairo-dev cairo-static pixman-static freetype-static \
+        fontconfig-static libpng-static expat-static zlib-static brotli-static \
+        curl-dev curl-static nghttp2-static \
+        json-c-dev json-c-static \
+        file-dev file-static \
+        xkbcommon-dev xkbcommon-static \
+        elogind-dev libcap-static
+  script:
+    - make LDFLAGS="-static -static-libgcc -no-pie -Wl,--strip-all"
+    - mv build/grabit grabit-x86_64-linux
+    - sha256sum grabit-x86_64-linux | tee grabit-x86_64-linux.sha256
+    - file grabit-x86_64-linux
+  artifacts:
+    paths:
+      - grabit-x86_64-linux
+      - grabit-x86_64-linux.sha256
+    expire_in: 1 week
+
+package:upload:
+  stage: package
+  image: curlimages/curl:latest
+  rules:
+    - if: $CI_COMMIT_TAG
+  needs: ["package:linux-x86_64-static"]
+  before_script: []
+  script:
+    - |
+      curl --fail --header "JOB-TOKEN: $CI_JOB_TOKEN" \
+        --upload-file grabit-x86_64-linux \
+        "${PACKAGE_REGISTRY_URL}/grabit-x86_64-linux"
+    - |
+      curl --fail --header "JOB-TOKEN: $CI_JOB_TOKEN" \
+        --upload-file grabit-x86_64-linux.sha256 \
+        "${PACKAGE_REGISTRY_URL}/grabit-x86_64-linux.sha256"
+
+release:
+  stage: release
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  rules:
+    - if: $CI_COMMIT_TAG
+  needs: ["package:upload"]
+  before_script: []
+  script:
+    - echo "releasing $CI_COMMIT_TAG"
+  release:
+    tag_name: $CI_COMMIT_TAG
+    description: "$CI_COMMIT_TAG"
+    assets:
+      links:
+        - name: "grabit (x86_64 linux, static)"
+          url: "${PACKAGE_REGISTRY_URL}/grabit-x86_64-linux"
+          link_type: package
+        - name: "sha256"
+          url: "${PACKAGE_REGISTRY_URL}/grabit-x86_64-linux.sha256"
+          link_type: other
