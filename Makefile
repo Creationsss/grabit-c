@@ -92,6 +92,7 @@ GRABIT_SRCS := \
 	src/paths.c \
 	src/util.c \
 	src/config.c \
+	src/config_cli.c \
 	src/template.c \
 	src/hyprland.c \
 	src/mime.c \
@@ -99,9 +100,14 @@ GRABIT_SRCS := \
 	src/capture/wlr_screencopy.c \
 	src/capture/png.c \
 	src/capture/transform.c \
+	src/capture/freeze.c \
+	src/util/json_path.c \
+	src/clipboard/clipboard.c \
 	src/clipboard/wlr_data_control.c \
 	src/notify/sd_bus.c \
 	src/region/wlr_layer.c \
+	src/region/wlr_render.c \
+	src/region/wlr_input.c \
 	src/record/record.c \
 	src/record/ring.c \
 	src/record/ffmpeg.c \

@@ -4,6 +4,7 @@
 #define _XOPEN_SOURCE 700
 #include "config.h"
 
+#include "config_internal.h"
 #include "log.h"
 #include "paths.h"
 #include "util.h"
@@ -55,18 +56,7 @@ static const char *VALS_zl_format[] = {"random", "date", "uuid", "name", "gfycat
 static const char *VALS_zl_compress[] = {"jpg", "png", "webp", "jxl", NULL};
 static const char *VALS_zl_true_only[] = {"true", NULL};
 
-enum zl_kind { ZL_FREE,
-			   ZL_ENUM,
-			   ZL_INT,
-			   ZL_INT_PCT };
-
-struct zl_hdr {
-	const char *name;
-	enum zl_kind kind;
-	const char **allowed;
-};
-
-static const struct zl_hdr ZIPLINE_HEADERS[] = {
+const struct zl_hdr gcfg_zl_headers[] = {
 	{"x-zipline-deletes-at", ZL_FREE, NULL},
 	{"x-zipline-format", ZL_ENUM, VALS_zl_format},
 	{"x-zipline-image-compression-percent", ZL_INT_PCT, NULL},
@@ -80,11 +70,11 @@ static const struct zl_hdr ZIPLINE_HEADERS[] = {
 	{"x-zipline-domain", ZL_FREE, NULL},
 	{"x-zipline-file-extension", ZL_FREE, NULL},
 };
-static const size_t ZIPLINE_HEADERS_N = sizeof ZIPLINE_HEADERS / sizeof ZIPLINE_HEADERS[0];
+const size_t gcfg_zl_headers_n = sizeof gcfg_zl_headers / sizeof gcfg_zl_headers[0];
 
-static const struct zl_hdr *zl_find(const char *name) {
-	for (size_t i = 0; i < ZIPLINE_HEADERS_N; i++) {
-		if (strcmp(ZIPLINE_HEADERS[i].name, name) == 0) return &ZIPLINE_HEADERS[i];
+const struct zl_hdr *gcfg_zl_find(const char *name) {
+	for (size_t i = 0; i < gcfg_zl_headers_n; i++) {
+		if (strcmp(gcfg_zl_headers[i].name, name) == 0) return &gcfg_zl_headers[i];
 	}
 	return NULL;
 }
@@ -250,7 +240,7 @@ int config_load(struct config *c) {
 	return 0;
 }
 
-static int cmp_kv(const void *a, const void *b) {
+int gcfg_cmp_kv(const void *a, const void *b) {
 	const struct kv *ka = a;
 	const struct kv *kb = b;
 	bool ad = strchr(ka->key, '.') != NULL;
@@ -302,7 +292,7 @@ static void emit_bare_or_quoted_key(struct grabit_buf *out, const char *k) {
 }
 
 int config_save(struct config *c) {
-	if (c->n > 1) qsort(c->kvs, c->n, sizeof *c->kvs, cmp_kv);
+	if (c->n > 1) qsort(c->kvs, c->n, sizeof *c->kvs, gcfg_cmp_kv);
 
 	struct grabit_buf out = {0};
 	const char *current_section = NULL;
@@ -524,7 +514,7 @@ int config_set(struct config *c, const char *key, const char *value) {
 	const char *zl_prefix = "services.zipline.headers.";
 	if (strncmp(key, zl_prefix, strlen(zl_prefix)) == 0) {
 		const char *hdr = key + strlen(zl_prefix);
-		const struct zl_hdr *spec = zl_find(hdr);
+		const struct zl_hdr *spec = gcfg_zl_find(hdr);
 		if (!spec) {
 			log_warn("unknown zipline header %s; forwarding as-is", hdr);
 		} else {
@@ -611,280 +601,4 @@ int config_set(struct config *c, const char *key, const char *value) {
 
 bool config_needs_setup(struct config *c) {
 	return config_get(c, "default_action") == NULL;
-}
-
-struct example {
-	const char *key;
-	const char *example;
-	const char *def;
-};
-
-static const struct example TOP_EXAMPLES[] = {
-	{"default_action", "upload|copy|save", "copy"},
-	{"notifications", "true|false", "true"},
-	{"sound", "true|false", "false"},
-	{"save_captures", "true|false", "false"},
-	{"save_dir", "~/Pictures", NULL},
-	{"editor", "satty", NULL},
-	{"filename", "%Y-%m-%d-%H-%M-%S", NULL},
-	{"filename_preset", "date|random|uuid|timestamp", "date"},
-	{"service", "zipline|nest|fakecrime|ez|guns|pixelvault", NULL},
-};
-static const size_t TOP_EXAMPLES_N = sizeof TOP_EXAMPLES / sizeof TOP_EXAMPLES[0];
-
-static const char *zl_header_example(const struct zl_hdr *h) {
-	static char buf[160];
-	switch (h->kind) {
-	case ZL_FREE:
-		if (strcmp(h->name, "x-zipline-deletes-at") == 0) return "1d";
-		if (strcmp(h->name, "x-zipline-domain") == 0) return "cdn1.example.com,cdn2.example.com";
-		if (strcmp(h->name, "x-zipline-file-extension") == 0) return ".png";
-		if (strcmp(h->name, "x-zipline-folder") == 0) return "<folder-id>";
-		if (strcmp(h->name, "x-zipline-filename") == 0) return "<override>";
-		return "<string>";
-	case ZL_ENUM: {
-		size_t off = 0;
-		buf[0] = '\0';
-		for (size_t i = 0; h->allowed[i]; i++) {
-			int n = snprintf(buf + off, sizeof buf - off, "%s%s", i ? "|" : "", h->allowed[i]);
-			if (n < 0 || (size_t)n >= sizeof buf - off) break;
-			off += (size_t)n;
-		}
-		return buf;
-	}
-	case ZL_INT:
-		return "<integer>";
-	case ZL_INT_PCT:
-		return "0-100";
-	}
-	return "";
-}
-
-static int example_for_key(const char *key, const char **example_out, const char **def_out) {
-	*def_out = NULL;
-	for (size_t i = 0; i < TOP_EXAMPLES_N; i++) {
-		if (strcmp(TOP_EXAMPLES[i].key, key) == 0) {
-			*example_out = TOP_EXAMPLES[i].example;
-			*def_out = TOP_EXAMPLES[i].def;
-			return 0;
-		}
-	}
-	if (strncmp(key, "services.", 9) == 0) {
-		const char *rest = key + 9;
-		const char *dot = strchr(rest, '.');
-		if (!dot) return -1;
-		const char *leaf = dot + 1;
-		if (strcmp(leaf, "auth") == 0) {
-			*example_out = "<api-token>";
-			return 0;
-		}
-		if (strcmp(leaf, "domain") == 0) {
-			*example_out = "https://<host>/api/upload";
-			return 0;
-		}
-		if (strcmp(leaf, "folder") == 0) {
-			*example_out = "<folder-uuid>";
-			return 0;
-		}
-		if (strncmp(leaf, "headers.", 8) == 0) {
-			const struct zl_hdr *h = zl_find(leaf + 8);
-			if (h) {
-				*example_out = zl_header_example(h);
-				return 0;
-			}
-		}
-	}
-	if (strncmp(key, "recording.", 10) == 0) {
-		const char *leaf = key + 10;
-		if (strcmp(leaf, "fps") == 0) {
-			*example_out = "1-120";
-			*def_out = "30";
-			return 0;
-		}
-		if (strcmp(leaf, "crf") == 0) {
-			*example_out = "0-51";
-			*def_out = "20";
-			return 0;
-		}
-		if (strcmp(leaf, "max_size_mb") == 0) {
-			*example_out = "100 (0 to disable)";
-			return 0;
-		}
-		if (strcmp(leaf, "cursor") == 0) {
-			*example_out = "true|false";
-			*def_out = "true";
-			return 0;
-		}
-		if (strcmp(leaf, "ffmpeg") == 0) {
-			*example_out = "ffmpeg | /usr/bin/ffmpeg";
-			*def_out = "ffmpeg";
-			return 0;
-		}
-		if (strcmp(leaf, "preset") == 0) {
-			*example_out = "ultrafast|superfast|veryfast|faster|fast|medium|slow|slower|veryslow";
-			*def_out = "fast";
-			return 0;
-		}
-		if (strcmp(leaf, "tune") == 0) {
-			*example_out = "film|animation|grain|stillimage|psnr|ssim|fastdecode|zerolatency (empty to disable)";
-			return 0;
-		}
-		if (strcmp(leaf, "pix_fmt") == 0) {
-			*example_out = "yuv420p|yuv422p|yuv444p|yuv420p10le";
-			*def_out = "yuv420p";
-			return 0;
-		}
-	}
-	return -1;
-}
-
-static bool print_example(const char *example, const char *def) {
-	if (!def) {
-		printf("%s", example);
-		return false;
-	}
-	size_t deflen = strlen(def);
-	const char *p = example;
-	bool starred = false;
-	while (*p) {
-		const char *bar = strchr(p, '|');
-		size_t len = bar ? (size_t)(bar - p) : strlen(p);
-		if (!starred && len == deflen && strncmp(p, def, len) == 0) {
-			printf("%.*s*", (int)len, p);
-			starred = true;
-		} else {
-			printf("%.*s", (int)len, p);
-		}
-		if (!bar) break;
-		printf("|");
-		p = bar + 1;
-	}
-	return starred;
-}
-
-static void print_set_help(void) {
-	puts("keys (run `grabit set <key>` for example values):");
-	puts("");
-	for (size_t i = 0; i < TOP_EXAMPLES_N; i++) {
-		printf("  %s\n", TOP_EXAMPLES[i].key);
-	}
-	puts("");
-	puts("  services.<svc>.auth     (svc: zipline|nest|fakecrime|ez|guns|pixelvault)");
-	puts("  services.zipline.domain");
-	puts("  services.nest.folder");
-	puts("");
-	puts("  services.zipline.headers.<name>:");
-	for (size_t i = 0; i < ZIPLINE_HEADERS_N; i++) {
-		printf("    %s\n", ZIPLINE_HEADERS[i].name);
-	}
-	puts("");
-	puts("  recording.fps");
-	puts("  recording.crf");
-	puts("  recording.preset");
-	puts("  recording.tune");
-	puts("  recording.pix_fmt");
-	puts("  recording.max_size_mb");
-	puts("  recording.cursor");
-	puts("  recording.ffmpeg");
-}
-
-int cmd_set(int argc, char **argv) {
-	if (argc == 0) {
-		print_set_help();
-		return 0;
-	}
-	if (argc == 1) {
-		const char *ex = NULL, *def = NULL;
-		if (example_for_key(argv[0], &ex, &def) != 0) {
-			log_error("unknown key: %s", argv[0]);
-			log_info("run `grabit set` to see all keys");
-			return 1;
-		}
-		printf("%s = ", argv[0]);
-		bool starred = print_example(ex, def);
-		printf("\n");
-		if (def) {
-			if (starred)
-				printf("(* = default)\n");
-			else
-				printf("default: %s\n", def);
-		}
-
-		struct config c = {0};
-		const char *current = NULL;
-		bool loaded = config_load(&c) == 0;
-		if (loaded) current = config_get(&c, argv[0]);
-		printf("current: %s\n", current ? current : "(unset)");
-		if (loaded) config_free(&c);
-		return 0;
-	}
-	if (argc != 2) {
-		log_error("usage: grabit set <key> <value>");
-		return 1;
-	}
-	struct config c;
-	if (config_load(&c) != 0) return 1;
-	int rc = config_set(&c, argv[0], argv[1]);
-	config_free(&c);
-	if (rc != 0) return 1;
-	log_info("set %s = %s", argv[0], argv[1]);
-	return 0;
-}
-
-int cmd_get(int argc, char **argv) {
-	if (argc > 1) {
-		log_error("usage: grabit get [<key>]");
-		return 1;
-	}
-	struct config c;
-	if (config_load(&c) != 0) return 1;
-
-	int rc = 0;
-	if (argc == 0) {
-		if (c.n > 1) qsort(c.kvs, c.n, sizeof *c.kvs, cmp_kv);
-		for (size_t i = 0; i < c.n; i++) {
-			printf("%s = %s\n", c.kvs[i].key, c.kvs[i].val);
-		}
-	} else {
-		const char *v = config_get(&c, argv[0]);
-		if (v) {
-			puts(v);
-		} else {
-			log_error("not set: %s", argv[0]);
-			rc = 1;
-		}
-	}
-	config_free(&c);
-	return rc;
-}
-
-int cmd_unset(int argc, char **argv) {
-	if (argc != 1) {
-		log_error("usage: grabit unset <key>");
-		return 1;
-	}
-	struct config c;
-	if (config_load(&c) != 0) return 1;
-
-	int rc = 0;
-	bool found = false;
-	for (size_t i = 0; i < c.n; i++) {
-		if (strcmp(c.kvs[i].key, argv[0]) != 0) continue;
-		free(c.kvs[i].key);
-		free(c.kvs[i].val);
-		c.kvs[i] = c.kvs[--c.n];
-		found = true;
-		break;
-	}
-	if (!found) {
-		log_error("not set: %s", argv[0]);
-		rc = 1;
-	} else if (config_save(&c) != 0) {
-		log_error("could not save config");
-		rc = 1;
-	} else {
-		log_info("unset %s", argv[0]);
-	}
-	config_free(&c);
-	return rc;
 }
