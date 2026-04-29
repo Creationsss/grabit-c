@@ -5,120 +5,126 @@
 #include "ocr/ocr.h"
 
 #include "log.h"
+#include "util.h"
 
+#include <errno.h>
 #include <fcntl.h>
+#include <signal.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
-#include <leptonica/allheaders.h>
-#include <tesseract/capi.h>
-
-struct grabit_ocr {
-	TessBaseAPI *api;
-};
-
-static int silence_stderr_begin(void) {
-	int saved = dup(STDERR_FILENO);
-	if (saved < 0) return -1;
-	int devnull = open("/dev/null", O_WRONLY);
-	if (devnull < 0) {
-		close(saved);
+static int waitpid_intr(pid_t pid, int *status) {
+	while (waitpid(pid, status, 0) < 0) {
+		if (errno == EINTR) continue;
 		return -1;
 	}
-	if (dup2(devnull, STDERR_FILENO) < 0) {
-		close(devnull);
-		close(saved);
-		return -1;
-	}
-	close(devnull);
-	return saved;
+	return 0;
 }
 
-static void silence_stderr_end(int saved) {
-	if (saved < 0) return;
-	dup2(saved, STDERR_FILENO);
-	close(saved);
-}
+int grabit_ocr_check(const char *bin) {
+	if (!bin || !bin[0]) return -1;
 
-struct grabit_ocr *grabit_ocr_open(void) {
-	TessBaseAPI *api = TessBaseAPICreate();
-	if (!api) {
-		log_error("ocr: TessBaseAPICreate failed");
-		return NULL;
-	}
-
-	int saved = silence_stderr_begin();
-	int rc = TessBaseAPIInit3(api, NULL, "eng");
-	silence_stderr_end(saved);
-
-	if (rc != 0) {
-		log_error("ocr: tesseract could not load language 'eng'");
-		log_error("  install the english training data:");
-		log_error("    void:   xbps-install -S tesseract-ocr-eng");
-		log_error("    arch:   pacman -S tesseract-data-eng");
-		log_error("    debian: apt install tesseract-ocr-eng");
-		log_error("    fedora: dnf install tesseract-langpack-eng");
-		log_error("  or download manually:");
-		log_error("    sudo curl -L -o /usr/share/tessdata/eng.traineddata \\");
-		log_error("      https://github.com/tesseract-ocr/tessdata_fast/raw/main/eng.traineddata");
-		log_error("  or point TESSDATA_PREFIX at an existing tessdata dir.");
-		TessBaseAPIDelete(api);
-		return NULL;
-	}
-
-	struct grabit_ocr *o = calloc(1, sizeof *o);
-	if (!o) {
-		log_error("ocr: oom");
-		TessBaseAPIEnd(api);
-		TessBaseAPIDelete(api);
-		return NULL;
-	}
-	o->api = api;
-	return o;
-}
-
-char *grabit_ocr_image(struct grabit_ocr *o, const char *path) {
-	if (!o || !o->api || !path || !path[0]) return NULL;
-
-	int saved = silence_stderr_begin();
-	PIX *pix = pixRead(path);
-	silence_stderr_end(saved);
-	if (!pix) {
-		log_error("ocr: could not load image %s", path);
-		return NULL;
-	}
-	TessBaseAPISetImage2(o->api, pix);
-
-	saved = silence_stderr_begin();
-	char *raw = TessBaseAPIGetUTF8Text(o->api);
-	silence_stderr_end(saved);
-
-	char *out = NULL;
-	if (raw) {
-		size_t n = strlen(raw);
-		while (n > 0 && (raw[n - 1] == '\n' || raw[n - 1] == '\r' ||
-						 raw[n - 1] == ' ' || raw[n - 1] == '\t')) {
-			n--;
+	pid_t pid = fork();
+	if (pid < 0) return -1;
+	if (pid == 0) {
+		int devnull = open("/dev/null", O_WRONLY);
+		if (devnull >= 0) {
+			dup2(devnull, STDOUT_FILENO);
+			dup2(devnull, STDERR_FILENO);
+			if (devnull > STDERR_FILENO) close(devnull);
 		}
-		out = malloc(n + 1);
-		if (out) {
-			memcpy(out, raw, n);
-			out[n] = '\0';
+		char *argv[] = {(char *)bin, (char *)"--version", NULL};
+		execvp(bin, argv);
+		_exit(127);
+	}
+	int status = 0;
+	if (waitpid_intr(pid, &status) != 0) return -1;
+	if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) return -1;
+	return 0;
+}
+
+char *grabit_ocr_run(const char *bin, const char *path) {
+	if (!bin || !bin[0] || !path || !path[0]) return NULL;
+
+	int p[2];
+	if (pipe(p) != 0) {
+		log_error("ocr: pipe: %s", strerror(errno));
+		return NULL;
+	}
+
+	pid_t pid = fork();
+	if (pid < 0) {
+		log_error("ocr: fork: %s", strerror(errno));
+		close(p[0]);
+		close(p[1]);
+		return NULL;
+	}
+	if (pid == 0) {
+		if (dup2(p[1], STDOUT_FILENO) < 0) _exit(126);
+		close(p[0]);
+		close(p[1]);
+		char *argv[] = {(char *)bin, (char *)path, (char *)"stdout",
+						(char *)"-l", (char *)"eng", NULL};
+		execvp(bin, argv);
+		_exit(127);
+	}
+	close(p[1]);
+
+	struct grabit_buf buf = {0};
+	char chunk[4096];
+	for (;;) {
+		ssize_t n = read(p[0], chunk, sizeof chunk);
+		if (n < 0) {
+			if (errno == EINTR) continue;
+			break;
+		}
+		if (n == 0) break;
+		if (grabit_buf_putn(&buf, chunk, (size_t)n) != 0) {
+			grabit_buf_free(&buf);
+			close(p[0]);
+			kill(pid, SIGTERM);
+			(void)waitpid_intr(pid, NULL);
+			log_error("ocr: oom reading tesseract output");
+			return NULL;
+		}
+	}
+	close(p[0]);
+
+	int status = 0;
+	if (waitpid_intr(pid, &status) != 0) {
+		grabit_buf_free(&buf);
+		return NULL;
+	}
+	if (!WIFEXITED(status)) {
+		grabit_buf_free(&buf);
+		log_error("ocr: tesseract killed by signal %d", WTERMSIG(status));
+		return NULL;
+	}
+	int code = WEXITSTATUS(status);
+	if (code != 0) {
+		grabit_buf_free(&buf);
+		if (code == 127) {
+			log_error("ocr: tesseract not found in $PATH");
 		} else {
-			log_error("ocr: oom copying result");
+			log_error("ocr: tesseract exited with code %d (see stderr above)", code);
 		}
+		return NULL;
 	}
-	TessDeleteText(raw);
-	pixDestroy(&pix);
-	return out;
-}
 
-void grabit_ocr_close(struct grabit_ocr *o) {
-	if (!o) return;
-	if (o->api) {
-		TessBaseAPIEnd(o->api);
-		TessBaseAPIDelete(o->api);
+	if (!buf.data) {
+		char *empty = malloc(1);
+		if (empty) empty[0] = '\0';
+		return empty;
 	}
-	free(o);
+
+	size_t n = buf.len;
+	while (n > 0 && (buf.data[n - 1] == '\n' || buf.data[n - 1] == '\r' ||
+					 buf.data[n - 1] == ' ' || buf.data[n - 1] == '\t')) {
+		n--;
+	}
+	buf.data[n] = '\0';
+	return buf.data;
 }

@@ -135,6 +135,14 @@ static int example_for_key(const char *key, const char **example_out, const char
 			return 0;
 		}
 	}
+	if (strncmp(key, "ocr.", 4) == 0) {
+		const char *leaf = key + 4;
+		if (strcmp(leaf, "tesseract") == 0) {
+			*example_out = "tesseract | /usr/local/bin/tesseract";
+			*def_out = "tesseract";
+			return 0;
+		}
+	}
 	return -1;
 }
 
@@ -186,6 +194,8 @@ static void print_set_help(void) {
 	puts("  recording.max_size_mb");
 	puts("  recording.cursor");
 	puts("  recording.ffmpeg");
+	puts("");
+	puts("  ocr.tesseract");
 }
 
 int cmd_set(int argc, char **argv) {

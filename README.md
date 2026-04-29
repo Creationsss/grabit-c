@@ -33,11 +33,9 @@ required:
 - libxkbcommon
 - sd-bus impl: `basu`, `libelogind`, or `libsystemd` (auto-detected by pkg-config)
 
-recording (always built; uses ffmpeg as a subprocess at runtime, no link-time dep beyond what's above).
-
-ocr (auto-detected at build time):
-- `tesseract` + `leptonica` development headers
-- english training data at runtime: `eng.traineddata` under `/usr/share/tessdata/` or `$TESSDATA_PREFIX`
+runtime (no link-time deps, looked up via `$PATH`):
+- `ffmpeg` for `--record`
+- `tesseract` + the english training data for `--tesseract`
 
 config parser (`tomlc99`) is vendored under `src/vendor/`.
 
@@ -158,7 +156,7 @@ config keys (all optional):
 grabit --tesseract            # select a region; text lands in clipboard
 ```
 
-requires `eng.traineddata` at runtime (in `/usr/share/tessdata/` or `$TESSDATA_PREFIX`). if grabit was built without tesseract development headers, `--tesseract` will tell you so.
+requires `tesseract` on `$PATH` and `eng.traineddata` (typically in `/usr/share/tessdata/` or `$TESSDATA_PREFIX`). override the binary with `grabit set ocr.tesseract /custom/path/tesseract`.
 
 ## filename templates
 

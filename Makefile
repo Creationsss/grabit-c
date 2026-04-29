@@ -46,19 +46,6 @@ endif
 
 PKGS_CORE := json-c libcurl wayland-client wayland-cursor cairo xkbcommon $(BUS_PKG)
 
-HAVE_TESSERACT := $(shell $(PKG_CONFIG) --exists tesseract && echo 1)
-ifeq ($(HAVE_TESSERACT),1)
-LEPT_PKG := $(shell $(PKG_CONFIG) --exists lept && echo lept || ($(PKG_CONFIG) --exists leptonica && echo leptonica))
-PKGS_CORE += tesseract $(LEPT_PKG)
-ifeq ($(LEPT_PKG),)
-LDLIBS += -lleptonica
-endif
-OCR_SRC   := src/ocr/tesseract.c
-else
-$(warning tesseract not found — building without OCR; install tesseract-devel + leptonica-devel)
-OCR_SRC   := src/ocr/none.c
-endif
-
 CFLAGS    += $(BUS_DEFINE) $(shell $(PKG_CONFIG) --cflags $(PKGS_CORE)) -pthread
 LDLIBS    += $(shell $(PKG_CONFIG) --libs   $(PKGS_CORE)) -lmagic -lrt -pthread
 
@@ -117,7 +104,7 @@ GRABIT_SRCS := \
 	src/tray/sni.c \
 	src/tray/tray.c \
 	src/upload/upload.c \
-	$(OCR_SRC)
+	src/ocr/tesseract.c
 
 GRABIT_VENDOR_SRCS := \
 	src/vendor/tomlc99/toml.c

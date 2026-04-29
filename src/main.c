@@ -271,11 +271,21 @@ static int run_output(struct config *cfg, const struct args *a) {
 }
 
 static int run_ocr(struct config *cfg, const struct args *a) {
-	struct grabit_ocr *ocr = grabit_ocr_open();
-	if (!ocr) {
+	const char *bin = config_get(cfg, "ocr.tesseract");
+	if (!bin || !bin[0]) bin = "tesseract";
+
+	if (grabit_ocr_check(bin) != 0) {
+		log_error("ocr: tesseract not found in $PATH (or `%s` not executable)", bin);
+		log_error("  install tesseract + the english training data:");
+		log_error("    void:   xbps-install -S tesseract-ocr tesseract-ocr-eng");
+		log_error("    arch:   pacman -S tesseract tesseract-data-eng");
+		log_error("    debian: apt install tesseract-ocr tesseract-ocr-eng");
+		log_error("    fedora: dnf install tesseract tesseract-langpack-eng");
+		log_error("  or set ocr.tesseract to a custom path:");
+		log_error("    grabit set ocr.tesseract /usr/local/bin/tesseract");
 		notify_send(&(struct notify_opts){
 			.summary = "grabit: setup needed",
-			.body = "OCR not available — see terminal for details",
+			.body = "tesseract not installed — see terminal for details",
 			.force = true,
 		});
 		return 1;
@@ -287,19 +297,14 @@ static int run_ocr(struct config *cfg, const struct args *a) {
 		path = strdup(a->file);
 		if (!path) {
 			log_error("oom: run_ocr");
-			grabit_ocr_close(ocr);
 			return 1;
 		}
 	} else {
 		path = capture_to_file(a, cfg, ACTION_OCR, &is_temp);
-		if (!path) {
-			grabit_ocr_close(ocr);
-			return 1;
-		}
+		if (!path) return 1;
 	}
 
-	char *text = grabit_ocr_image(ocr, path);
-	grabit_ocr_close(ocr);
+	char *text = grabit_ocr_run(bin, path);
 
 	if (is_temp) {
 		unlink(path);

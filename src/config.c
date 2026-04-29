@@ -399,6 +399,13 @@ static bool valid_service_key(const char *key) {
 	return false;
 }
 
+static bool valid_ocr_key(const char *key) {
+	if (strncmp(key, "ocr.", 4) != 0) return false;
+	const char *leaf = key + 4;
+	if (strcmp(leaf, "tesseract") == 0) return true;
+	return false;
+}
+
 static bool valid_recording_key(const char *key) {
 	if (strncmp(key, "recording.", 10) != 0) return false;
 	const char *leaf = key + 10;
@@ -465,7 +472,8 @@ static int validate_int_in_range(const char *key, const char *value, long lo, lo
 }
 
 int config_set(struct config *c, const char *key, const char *value) {
-	if (!valid_top_key(key) && !valid_service_key(key) && !valid_recording_key(key)) {
+	if (!valid_top_key(key) && !valid_service_key(key) && !valid_recording_key(key) &&
+		!valid_ocr_key(key)) {
 		log_error("unknown config key: %s", key);
 		return -1;
 	}

@@ -4,10 +4,7 @@
 #ifndef GRABIT_OCR_H
 #define GRABIT_OCR_H
 
-struct grabit_ocr;
-
-struct grabit_ocr *grabit_ocr_open(void);
-char *grabit_ocr_image(struct grabit_ocr *o, const char *path);
-void grabit_ocr_close(struct grabit_ocr *o);
+int grabit_ocr_check(const char *bin);
+char *grabit_ocr_run(const char *bin, const char *path);
 
 #endif
