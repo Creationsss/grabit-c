@@ -19,6 +19,7 @@
 #include "log.h"
 #include "mime.h"
 #include "notify/notify.h"
+#include "ocr/ocr.h"
 #include "paths.h"
 #include "record/record.h"
 #include "region/region.h"
@@ -110,6 +111,8 @@ static char *build_capture_path(const struct args *a, struct config *cfg,
 	bool save;
 	if (eff == ACTION_OUTPUT) {
 		save = true;
+	} else if (eff == ACTION_OCR) {
+		save = false;
 	} else {
 		const char *si = config_get(cfg, "save_captures");
 		save = si && strcmp(si, "true") == 0;
@@ -372,15 +375,90 @@ static int run_output(struct config *cfg, const struct args *a) {
 }
 
 static int run_ocr(struct config *cfg, const struct args *a) {
-	(void)cfg;
-	(void)a;
-	log_error("--tesseract not yet implemented.");
+	struct grabit_ocr *ocr = grabit_ocr_open();
+	if (!ocr) {
+		notify_send(&(struct notify_opts){
+			.summary = "grabit: setup needed",
+			.body = "OCR not available — see terminal for details",
+			.force = true,
+		});
+		return 1;
+	}
+
+	bool is_temp = false;
+	char *path;
+	if (a->file) {
+		path = strdup(a->file);
+		if (!path) {
+			log_error("oom: run_ocr");
+			grabit_ocr_close(ocr);
+			return 1;
+		}
+	} else {
+		path = capture_to_file(a, cfg, ACTION_OCR, &is_temp);
+		if (!path) {
+			grabit_ocr_close(ocr);
+			return 1;
+		}
+	}
+
+	char *text = grabit_ocr_image(ocr, path);
+	grabit_ocr_close(ocr);
+
+	if (is_temp) {
+		unlink(path);
+		clear_tmpfile();
+	}
+	free(path);
+
+	if (!text) {
+		notify_send(&(struct notify_opts){
+			.summary = "OCR failed",
+			.body = "see terminal for details",
+			.force = true,
+		});
+		return 1;
+	}
+	if (!text[0]) {
+		free(text);
+		log_info("OCR: no text found in selection");
+		notify_send(&(struct notify_opts){
+			.summary = "OCR: no text found",
+			.force = true,
+		});
+		return 1;
+	}
+
+	if (clipboard_set_text(text) != 0) {
+		log_error("OCR: clipboard write failed");
+		notify_send(&(struct notify_opts){
+			.summary = "Clipboard write failed",
+			.body = "OCR text not copied — see terminal for details",
+			.force = true,
+		});
+		free(text);
+		return 1;
+	}
+
+	size_t tlen = strlen(text);
+	char preview[160];
+	if (tlen > 100) {
+		size_t n = 100;
+		while (n > 0 && ((unsigned char)text[n] & 0xC0) == 0x80)
+			n--;
+		snprintf(preview, sizeof preview, "%.*s…", (int)n, text);
+	} else {
+		snprintf(preview, sizeof preview, "%s", text);
+	}
+
+	log_info("OCR: %zu chars copied to clipboard", tlen);
 	notify_send(&(struct notify_opts){
-		.summary = "grabit",
-		.body = "--tesseract not yet implemented",
-		.force = true,
+		.summary = "OCR Complete",
+		.body = preview,
 	});
-	return 1;
+
+	free(text);
+	return 0;
 }
 
 static int run_record(struct config *cfg, const struct args *a) {
