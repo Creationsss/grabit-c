@@ -11,6 +11,21 @@
 #include <stdint.h>
 
 #define RING_CAP 16
+#define POOL_CAP (RING_CAP + 2)
+
+struct buf_pool {
+	void *slots[POOL_CAP];
+	bool busy[POOL_CAP];
+	size_t n;
+	size_t buf_size;
+	pthread_mutex_t mu;
+	pthread_cond_t cv;
+};
+
+int pool_init(struct buf_pool *p, size_t n, size_t buf_size);
+void pool_destroy(struct buf_pool *p);
+void *pool_acquire(struct buf_pool *p);
+void pool_release(struct buf_pool *p, void *buf);
 
 struct frame {
 	void *data;
@@ -18,7 +33,10 @@ struct frame {
 	int32_t height;
 	int32_t stride;
 	uint32_t format;
+	struct buf_pool *pool;
 };
+
+void frame_release(struct frame *f);
 
 struct ring {
 	struct frame slots[RING_CAP];

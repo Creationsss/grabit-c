@@ -112,11 +112,12 @@ static char *build_record_path(struct config *cfg, const struct args *a) {
 }
 
 static int capture_loop(struct grabit_wl_state *s, const struct rec_layout *layout,
-						int fps, bool cursor, struct ring *ring) {
+						struct buf_pool *pool, int fps, bool cursor, struct ring *ring) {
 	int64_t period_ns = 1000000000 / fps;
 	int64_t start_ns = now_ns();
 	int64_t frame_idx = 0;
 	int consec_fail = 0;
+	bool direct = rec_layout_is_direct(layout);
 
 	while (!g_stop) {
 		int64_t deadline = start_ns + frame_idx * period_ns;
@@ -133,7 +134,23 @@ static int capture_loop(struct grabit_wl_state *s, const struct rec_layout *layo
 		}
 
 		void *frame_buf = NULL;
-		if (rec_layout_capture_frame(s, layout, cursor, &frame_buf) != 0) {
+		int32_t frame_stride = layout->dst_stride;
+		struct buf_pool *frame_pool = NULL;
+		int rc;
+		if (direct) {
+			rc = rec_layout_capture_direct(s, layout, cursor, &frame_buf, &frame_stride);
+		} else {
+			frame_buf = pool_acquire(pool);
+			rc = rec_layout_capture_compose(s, layout, cursor, frame_buf);
+			if (rc != 0) {
+				pool_release(pool, frame_buf);
+				frame_buf = NULL;
+			} else {
+				frame_pool = pool;
+			}
+		}
+
+		if (rc != 0) {
 			if (++consec_fail == 1) log_warn("recording: frame capture failed");
 			if (consec_fail > 30) {
 				log_error("recording: too many consecutive capture failures; stopping");
@@ -149,8 +166,9 @@ static int capture_loop(struct grabit_wl_state *s, const struct rec_layout *layo
 			.data = frame_buf,
 			.width = layout->dst_w,
 			.height = layout->dst_h,
-			.stride = layout->dst_stride,
+			.stride = frame_stride,
 			.format = WL_SHM_FORMAT_ARGB8888,
+			.pool = frame_pool,
 		};
 		ring_push(ring, &f);
 		frame_idx++;
@@ -293,8 +311,29 @@ int record_toggle(struct config *cfg, const struct args *a) {
 		.force = true,
 	});
 
+	struct buf_pool pool = {0};
+	bool pool_used = !rec_layout_is_direct(&layout);
+	if (pool_used) {
+		size_t buf_size = (size_t)layout.dst_stride * (size_t)layout.dst_h;
+		if (pool_init(&pool, POOL_CAP, buf_size) != 0) {
+			log_error("recording: could not allocate frame pool");
+			ring_stop(&ring);
+			pthread_join(enc, NULL);
+			restore_signal_handlers(&prev);
+			ring_destroy(&ring);
+			close(ffmpeg_fd);
+			(void)wait_ffmpeg(ffmpeg_pid);
+			unlink_pid_file();
+			unlink(output_path);
+			free(output_path);
+			rec_layout_free(&layout);
+			grabit_wl_finish(&s);
+			return 1;
+		}
+	}
+
 	int64_t t0 = now_ns();
-	capture_loop(&s, &layout, fps, cursor, &ring);
+	capture_loop(&s, &layout, pool_used ? &pool : NULL, fps, cursor, &ring);
 	int64_t t1 = now_ns();
 
 	ring_stop(&ring);
@@ -377,6 +416,7 @@ int record_toggle(struct config *cfg, const struct args *a) {
 
 	restore_signal_handlers(&prev);
 	ring_destroy(&ring);
+	if (pool_used) pool_destroy(&pool);
 	unlink_pid_file();
 	free(output_path);
 	rec_layout_free(&layout);

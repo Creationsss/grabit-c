@@ -77,20 +77,44 @@ static cairo_format_t image_cairo_format(uint32_t fmt) {
 	return CAIRO_FORMAT_RGB24;
 }
 
-int rec_layout_capture_frame(struct grabit_wl_state *s, const struct rec_layout *layout,
-							 bool cursor, void **out_buf) {
-	if (!s || !layout || !out_buf) return -1;
+bool rec_layout_is_direct(const struct rec_layout *layout) {
+	if (!layout || layout->n != 1) return false;
+	const struct rec_slice *sl = &layout->slices[0];
+	return sl->dst_x == 0 && sl->dst_y == 0 && sl->dst_w == layout->dst_w && sl->dst_h == layout->dst_h;
+}
 
-	void *buf = calloc(1, (size_t)layout->dst_stride * (size_t)layout->dst_h);
-	if (!buf) return -1;
+int rec_layout_capture_direct(struct grabit_wl_state *s, const struct rec_layout *layout,
+							  bool cursor, void **out_buf, int32_t *out_stride) {
+	if (!s || !layout || !out_buf || !out_stride) return -1;
+	if (layout->n != 1) return -1;
+	const struct rec_slice *sl = &layout->slices[0];
+	struct image img = {0};
+	if (capture_output_region(s, sl->out,
+							  sl->src_x, sl->src_y, sl->src_w, sl->src_h,
+							  cursor, &img) != 0) {
+		return -1;
+	}
+	if (img.width != layout->dst_w || img.height != layout->dst_h) {
+		image_free(&img);
+		return -1;
+	}
+	*out_buf = img.bytes;
+	*out_stride = img.stride;
+	return 0;
+}
+
+int rec_layout_capture_compose(struct grabit_wl_state *s, const struct rec_layout *layout,
+							   bool cursor, void *dst_buf) {
+	if (!s || !layout || !dst_buf) return -1;
+
+	memset(dst_buf, 0, (size_t)layout->dst_stride * (size_t)layout->dst_h);
 
 	cairo_surface_t *dst = cairo_image_surface_create_for_data(
-		buf, CAIRO_FORMAT_ARGB32, layout->dst_w, layout->dst_h, layout->dst_stride);
+		dst_buf, CAIRO_FORMAT_ARGB32, layout->dst_w, layout->dst_h, layout->dst_stride);
 	if (cairo_surface_status(dst) != CAIRO_STATUS_SUCCESS) {
 		log_error("compose: dst surface: %s",
 				  cairo_status_to_string(cairo_surface_status(dst)));
 		cairo_surface_destroy(dst);
-		free(buf);
 		return -1;
 	}
 	cairo_t *cr = cairo_create(dst);
@@ -138,14 +162,7 @@ int rec_layout_capture_frame(struct grabit_wl_state *s, const struct rec_layout 
 	cairo_destroy(cr);
 	cairo_surface_flush(dst);
 	cairo_surface_destroy(dst);
-
-	if (rc != 0) {
-		free(buf);
-		*out_buf = NULL;
-		return rc;
-	}
-	*out_buf = buf;
-	return 0;
+	return rc;
 }
 
 void rec_layout_free(struct rec_layout *layout) {
