@@ -57,7 +57,7 @@ int upload_preflight(struct config *cfg, const struct args *a, const char **serv
 		log_error("no service: pass --<service> or `grabit set service <name>`");
 		notify_send(&(struct notify_opts){
 			.summary = "grabit: setup needed",
-			.body = "no upload service set — see terminal for details",
+			.body = "no upload service set; see terminal for details",
 			.force = true,
 		});
 		return -1;
@@ -66,7 +66,7 @@ int upload_preflight(struct config *cfg, const struct args *a, const char **serv
 		log_error("unknown service: %s", service);
 		notify_send(&(struct notify_opts){
 			.summary = "grabit: setup needed",
-			.body = "unknown service — see terminal for details",
+			.body = "unknown service; see terminal for details",
 			.force = true,
 		});
 		return -1;
@@ -87,7 +87,7 @@ int upload_preflight(struct config *cfg, const struct args *a, const char **serv
 		log_error("  or fallback (plaintext in config 0600):");
 		log_error("    grabit set %s <token>", cfg_key);
 		char body[128];
-		snprintf(body, sizeof body, "%s auth token not set — see terminal for details", service);
+		snprintf(body, sizeof body, "%s auth token not set; see terminal for details", service);
 		notify_send(&(struct notify_opts){
 			.summary = "grabit: setup needed",
 			.body = body,
@@ -103,7 +103,7 @@ int upload_preflight(struct config *cfg, const struct args *a, const char **serv
 			log_error("    grabit set services.zipline.domain https://<host>/api/upload");
 			notify_send(&(struct notify_opts){
 				.summary = "grabit: setup needed",
-				.body = "zipline domain not set — see terminal for details",
+				.body = "zipline domain not set; see terminal for details",
 				.force = true,
 			});
 			return -1;
@@ -156,19 +156,19 @@ static struct curl_slist *append_header(struct curl_slist *list,
 static void log_http_failure(long code, const char *body) {
 	switch (code) {
 	case 401:
-		log_error("upload failed (401): authentication failed — check your auth token");
+		log_error("upload failed (401): authentication failed; check your auth token");
 		break;
 	case 413:
-		log_error("upload failed (413): file too large — try compressing");
+		log_error("upload failed (413): file too large; try compressing");
 		break;
 	case 422:
-		log_error("upload failed (422): file rejected — invalid format or validation failure");
+		log_error("upload failed (422): file rejected; invalid format or validation failure");
 		break;
 	case 429:
-		log_error("upload failed (429): rate limited — wait a bit before retrying");
+		log_error("upload failed (429): rate limited; wait a bit before retrying");
 		break;
 	case 500:
-		log_error("upload failed (500): server error — try again later");
+		log_error("upload failed (500): server error; try again later");
 		break;
 	default:
 		if (code == 0)

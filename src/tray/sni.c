@@ -87,7 +87,7 @@ static int prop_tooltip(sd_bus *bus, const char *path, const char *iface,
 	if (rc < 0) return rc;
 	rc = sd_bus_message_close_container(reply);
 	if (rc < 0) return rc;
-	rc = sd_bus_message_append(reply, "ss", "grabit", "recording — click to stop");
+	rc = sd_bus_message_append(reply, "ss", "grabit", "recording; click to stop");
 	if (rc < 0) return rc;
 	return sd_bus_message_close_container(reply);
 }
@@ -131,7 +131,7 @@ int sni_run(volatile sig_atomic_t *stop) {
 	int rc = sd_bus_open_user(&bus);
 	if (rc < 0) {
 		log_warn("tray: no user dbus session (%s)", strerror(-rc));
-		notify_tray_unavailable("tray unavailable — no user dbus session");
+		notify_tray_unavailable("tray unavailable; no user dbus session");
 		return -1;
 	}
 
@@ -140,7 +140,7 @@ int sni_run(volatile sig_atomic_t *stop) {
 	rc = sd_bus_request_name(bus, name, 0);
 	if (rc < 0) {
 		log_warn("tray: could not claim bus name %s: %s", name, strerror(-rc));
-		notify_tray_unavailable("tray unavailable — see terminal for details");
+		notify_tray_unavailable("tray unavailable; see terminal for details");
 		sd_bus_unref(bus);
 		return -1;
 	}
@@ -148,7 +148,7 @@ int sni_run(volatile sig_atomic_t *stop) {
 	if (sd_bus_add_object_vtable(bus, NULL, ITEM_PATH, ITEM_IFACE,
 								 item_vtable, &props) < 0) {
 		log_warn("tray: could not register SNI object vtable");
-		notify_tray_unavailable("tray unavailable — see terminal for details");
+		notify_tray_unavailable("tray unavailable; see terminal for details");
 		sd_bus_unref(bus);
 		return -1;
 	}
@@ -160,11 +160,11 @@ int sni_run(volatile sig_atomic_t *stop) {
 		const char *ename = err.name ? err.name : "";
 		if (strstr(ename, "ServiceUnknown") || strstr(ename, "NameHasNoOwner")) {
 			log_warn("tray: no SNI host running (install a status bar with tray support, "
-					 "e.g. waybar with tray module — or pass --no-tray to silence)");
-			notify_tray_unavailable("no tray host running — see terminal for details");
+					 "e.g. waybar with tray module; or pass --no-tray to silence)");
+			notify_tray_unavailable("no tray host running; see terminal for details");
 		} else {
 			log_warn("tray: register failed: %s", err.message ? err.message : strerror(-rc));
-			notify_tray_unavailable("tray register failed — see terminal for details");
+			notify_tray_unavailable("tray register failed; see terminal for details");
 		}
 		sd_bus_error_free(&err);
 		sd_bus_unref(bus);

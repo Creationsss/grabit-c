@@ -39,7 +39,7 @@ else ifeq ($(HAVE_LIBSYSTEMD),1)
 BUS_PKG    := libsystemd
 BUS_DEFINE :=
 else
-$(warning no sd-bus impl found — install basu-devel (Void / non-systemd), libelogind-devel, or libsystemd-devel)
+$(warning no sd-bus impl found; install basu-devel (Void / non-systemd), libelogind-devel, or libsystemd-devel)
 BUS_PKG    :=
 BUS_DEFINE :=
 endif

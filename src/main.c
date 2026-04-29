@@ -272,20 +272,22 @@ static int run_output(struct config *cfg, const struct args *a) {
 
 static int run_ocr(struct config *cfg, const struct args *a) {
 	const char *bin = config_get(cfg, "ocr.tesseract");
-	if (!bin || !bin[0]) bin = "tesseract";
-
-	if (grabit_ocr_check(bin) != 0) {
-		log_error("ocr: tesseract not found in $PATH (or `%s` not executable)", bin);
-		log_error("  install tesseract + the english training data:");
-		log_error("    void:   xbps-install -S tesseract-ocr tesseract-ocr-eng");
-		log_error("    arch:   pacman -S tesseract tesseract-data-eng");
-		log_error("    debian: apt install tesseract-ocr tesseract-ocr-eng");
-		log_error("    fedora: dnf install tesseract tesseract-langpack-eng");
-		log_error("  or set ocr.tesseract to a custom path:");
-		log_error("    grabit set ocr.tesseract /usr/local/bin/tesseract");
+	if (!bin || !bin[0]) {
+		static const char *const CANDIDATES[] = {"tesseract", "tesseract-ocr", NULL};
+		for (size_t i = 0; CANDIDATES[i]; i++) {
+			if (grabit_ocr_check(CANDIDATES[i]) == 0) {
+				bin = CANDIDATES[i];
+				break;
+			}
+		}
+	} else if (grabit_ocr_check(bin) != 0) {
+		bin = NULL;
+	}
+	if (!bin) {
+		log_error("ocr: tesseract not found in $PATH (install tesseract)");
 		notify_send(&(struct notify_opts){
 			.summary = "grabit: setup needed",
-			.body = "tesseract not installed — see terminal for details",
+			.body = "tesseract not installed",
 			.force = true,
 		});
 		return 1;
@@ -334,7 +336,7 @@ static int run_ocr(struct config *cfg, const struct args *a) {
 		log_error("OCR: clipboard write failed");
 		notify_send(&(struct notify_opts){
 			.summary = "Clipboard write failed",
-			.body = "OCR text not copied — see terminal for details",
+			.body = "OCR text not copied; see terminal for details",
 			.force = true,
 		});
 		free(text);
@@ -400,7 +402,7 @@ static int run(const struct args *a) {
 		rc = run_record(&cfg, a);
 		break;
 	default:
-		log_error("no action specified — try -u, -c, -o, --record, or --tesseract");
+		log_error("no action specified; try -u, -c, -o, --record, or --tesseract");
 		log_info("(or set a default with: grabit set default_action upload)");
 		rc = 1;
 		break;

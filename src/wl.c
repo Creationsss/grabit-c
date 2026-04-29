@@ -266,7 +266,7 @@ int grabit_wl_init(struct grabit_wl_state *s) {
 		goto fail;
 	}
 	if (!s->screencopy_manager) {
-		log_error("compositor doesn't advertise zwlr_screencopy_manager_v1 — "
+		log_error("compositor doesn't advertise zwlr_screencopy_manager_v1; "
 				  "grabit only supports wlroots-based compositors");
 		goto fail;
 	}

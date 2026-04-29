@@ -157,7 +157,7 @@ int main(int argc, char **argv) {
 	}
 
 	if (g_apply) {
-		printf("done — %d file(s) updated.\n", g_applied);
+		printf("done; %d file(s) updated.\n", g_applied);
 		return 0;
 	}
 	if (g_missing > 0) {

@@ -38,11 +38,18 @@ int grabit_ocr_check(const char *bin) {
 		}
 		char *argv[] = {(char *)bin, (char *)"--version", NULL};
 		execvp(bin, argv);
-		_exit(127);
+		_exit(errno == ENOENT ? 127 : 126);
 	}
 	int status = 0;
 	if (waitpid_intr(pid, &status) != 0) return -1;
-	if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) return -1;
+	if (!WIFEXITED(status)) {
+		log_debug("ocr: tesseract --version killed by signal %d", WTERMSIG(status));
+		return -1;
+	}
+	int code = WEXITSTATUS(status);
+	log_debug("ocr: tesseract --version exit code = %d", code);
+	if (code == 127) return -1;
+	if (code == 126) return -1;
 	return 0;
 }
 

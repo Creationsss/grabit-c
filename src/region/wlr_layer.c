@@ -53,7 +53,7 @@ int region_select(struct grabit_wl_state *s, const struct image *frozen, struct 
 	}
 	st.cursor_theme = wl_cursor_theme_load(NULL, 24 * max_scale, s->shm);
 	if (!st.cursor_theme) {
-		log_warn("region: no cursor theme found — cursor may be invisible");
+		log_warn("region: no cursor theme found; cursor may be invisible");
 	} else {
 		const char *names[] = {
 			"crosshair",

@@ -326,7 +326,7 @@ int record_toggle(struct config *cfg, const struct args *a) {
 		return 1;
 	}
 
-	log_info("recording %dx%d (%zu output%s) @ %d fps → %s — re-run `grabit --record` to stop",
+	log_info("recording %dx%d (%zu output%s) @ %d fps → %s; re-run `grabit --record` to stop",
 			 layout.dst_w, layout.dst_h, layout.n, layout.n == 1 ? "" : "s",
 			 fps, output_path);
 
@@ -424,7 +424,7 @@ int record_toggle(struct config *cfg, const struct args *a) {
 				log_error("recording upload failed; file kept at %s", output_path);
 				notify_send(&(struct notify_opts){
 					.summary = "Upload failed",
-					.body = "recording kept on disk — see terminal",
+					.body = "recording kept on disk; see terminal",
 					.force = true,
 				});
 			}

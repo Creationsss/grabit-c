@@ -50,7 +50,7 @@ struct tray_state *tray_start(void) {
 		log_warn("tray: fork failed: %s", strerror(errno));
 		notify_send(&(struct notify_opts){
 			.summary = "grabit: setup needed",
-			.body = "tray unavailable — see terminal for details",
+			.body = "tray unavailable; see terminal for details",
 			.force = true,
 		});
 		free(t);
