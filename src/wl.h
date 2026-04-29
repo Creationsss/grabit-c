@@ -4,6 +4,7 @@
 #ifndef GRABIT_WL_H
 #define GRABIT_WL_H
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -22,6 +23,8 @@ struct grabit_output {
 	struct grabit_wl_state *state;
 	struct wl_output *wl_output;
 	struct zxdg_output_v1 *xdg_output;
+	uint32_t global_name; // wl_registry global id, for global_remove matching
+	bool dead;			  // server-side output went away; do not call into protocols
 	char *name;
 	char *make;
 	char *model;

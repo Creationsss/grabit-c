@@ -23,6 +23,7 @@
 #include <errno.h>
 #include <pthread.h>
 #include <signal.h>
+#include <stdatomic.h>
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -35,11 +36,11 @@
 #include <unistd.h>
 #include <wayland-client.h>
 
-static volatile sig_atomic_t g_stop;
+static atomic_int g_stop;
 
 static void on_record_signal(int sig) {
 	(void)sig;
-	g_stop = 1;
+	atomic_store(&g_stop, 1);
 }
 
 struct prev_sigs {
@@ -102,6 +103,16 @@ static const char *read_preset(struct config *cfg) {
 	return (v && v[0]) ? v : "fast";
 }
 
+static const char *read_tune(struct config *cfg) {
+	const char *v = config_get(cfg, "recording.tune");
+	return (v && v[0]) ? v : NULL;
+}
+
+static const char *read_pix_fmt(struct config *cfg) {
+	const char *v = config_get(cfg, "recording.pix_fmt");
+	return (v && v[0]) ? v : "yuv420p";
+}
+
 static int64_t now_ns(void) {
 	struct timespec ts;
 	clock_gettime(CLOCK_MONOTONIC, &ts);
@@ -124,11 +135,11 @@ static int capture_loop(struct grabit_wl_state *s, const struct rec_layout *layo
 		int64_t deadline = start_ns + frame_idx * period_ns;
 		int64_t cur = now_ns();
 		if (deadline > cur) {
-			struct timespec sl = {
-				.tv_sec = (deadline - cur) / 1000000000,
-				.tv_nsec = (deadline - cur) % 1000000000,
+			struct timespec ts = {
+				.tv_sec = deadline / 1000000000,
+				.tv_nsec = deadline % 1000000000,
 			};
-			nanosleep(&sl, NULL);
+			clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &ts, NULL);
 			if (g_stop) break;
 		} else if (cur - deadline > period_ns * 4) {
 			frame_idx = (cur - start_ns) / period_ns;
@@ -141,7 +152,12 @@ static int capture_loop(struct grabit_wl_state *s, const struct rec_layout *layo
 		if (direct) {
 			rc = rec_layout_capture_direct(s, layout, cursor, &frame_buf, &frame_stride);
 		} else {
-			frame_buf = pool_acquire(pool);
+			frame_buf = pool_try_acquire(pool);
+			if (!frame_buf) {
+				ring_record_drop(ring);
+				frame_idx++;
+				continue;
+			}
 			rc = rec_layout_capture_compose(s, layout, cursor, frame_buf);
 			if (rc != 0) {
 				pool_release(pool, frame_buf);
@@ -250,16 +266,8 @@ int record_toggle(struct config *cfg, const struct args *a) {
 	bool cursor = read_cursor(cfg);
 	const char *ffmpeg_bin = read_ffmpeg(cfg);
 	const char *preset = read_preset(cfg);
-
-	pid_t ffmpeg_pid = -1;
-	int ffmpeg_fd = -1;
-	if (spawn_ffmpeg(ffmpeg_bin, preset, layout.dst_w, layout.dst_h, fps, crf,
-					 output_path, &ffmpeg_pid, &ffmpeg_fd) != 0) {
-		free(output_path);
-		rec_layout_free(&layout);
-		grabit_wl_finish(&s);
-		return 1;
-	}
+	const char *tune = read_tune(cfg);
+	const char *pix_fmt = read_pix_fmt(cfg);
 
 	if (write_pid_file_excl(getpid()) != 0) {
 		if (errno == EEXIST) {
@@ -267,9 +275,18 @@ int record_toggle(struct config *cfg, const struct args *a) {
 		} else {
 			log_error("could not write recording pidfile: %s", strerror(errno));
 		}
-		close(ffmpeg_fd);
-		(void)wait_ffmpeg(ffmpeg_pid);
-		unlink(output_path);
+		free(output_path);
+		rec_layout_free(&layout);
+		grabit_wl_finish(&s);
+		return 1;
+	}
+
+	pid_t ffmpeg_pid = -1;
+	int ffmpeg_fd = -1;
+	if (spawn_ffmpeg(ffmpeg_bin, preset, tune, pix_fmt,
+					 layout.dst_w, layout.dst_h, fps, crf,
+					 output_path, &ffmpeg_pid, &ffmpeg_fd) != 0) {
+		unlink_pid_file();
 		free(output_path);
 		rec_layout_free(&layout);
 		grabit_wl_finish(&s);
@@ -308,7 +325,7 @@ int record_toggle(struct config *cfg, const struct args *a) {
 			 fps, output_path);
 	notify_send(&(struct notify_opts){
 		.summary = "Recording",
-		.body = "press grabit --record again to stop",
+		.body = "run grabit --record again to stop",
 		.force = true,
 	});
 
@@ -366,7 +383,7 @@ int record_toggle(struct config *cfg, const struct args *a) {
 				.body = output_path,
 				.force = true,
 			});
-			if (compress_to_target_size(ffmpeg_bin, output_path, max_mb, secs) == 0) {
+			if (compress_to_target_size(ffmpeg_bin, output_path, max_mb, secs, &g_stop) == 0) {
 				if (stat(output_path, &st) == 0) {
 					log_info("recording: compressed to %lld bytes",
 							 (long long)st.st_size);

@@ -8,6 +8,7 @@
 #include "util.h"
 
 #include <errno.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -15,9 +16,16 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-static int waitpid_intr(pid_t pid, int *status, const char *what) {
+static int waitpid_intr(pid_t pid, int *status, const char *what, atomic_int *stop) {
+	bool sent_stop = false;
 	while (waitpid(pid, status, 0) < 0) {
-		if (errno == EINTR) continue;
+		if (errno == EINTR) {
+			if (!sent_stop && stop && atomic_load(stop)) {
+				kill(pid, SIGINT);
+				sent_stop = true;
+			}
+			continue;
+		}
 		log_error("waitpid(%s): %s", what, strerror(errno));
 		return -1;
 	}
@@ -25,6 +33,7 @@ static int waitpid_intr(pid_t pid, int *status, const char *what) {
 }
 
 int spawn_ffmpeg(const char *ffmpeg_bin, const char *preset,
+				 const char *tune, const char *pix_fmt,
 				 int width, int height, int fps, int crf,
 				 const char *output_path,
 				 pid_t *child_pid, int *write_fd) {
@@ -53,34 +62,40 @@ int spawn_ffmpeg(const char *ffmpeg_bin, const char *preset,
 		snprintf(rate, sizeof rate, "%d", fps);
 		snprintf(crf_s, sizeof crf_s, "%d", crf);
 
-		char *argv[] = {
-			(char *)ffmpeg_bin,
-			(char *)"-loglevel",
-			(char *)"error",
-			(char *)"-y",
-			(char *)"-f",
-			(char *)"rawvideo",
-			(char *)"-pix_fmt",
-			(char *)"bgra",
-			(char *)"-s",
-			size,
-			(char *)"-framerate",
-			rate,
-			(char *)"-i",
-			(char *)"-",
-			(char *)"-vf",
-			(char *)"crop=trunc(iw/2)*2:trunc(ih/2)*2",
-			(char *)"-c:v",
-			(char *)"libx264",
-			(char *)"-preset",
-			(char *)preset,
-			(char *)"-pix_fmt",
-			(char *)"yuv420p",
-			(char *)"-crf",
-			crf_s,
-			(char *)output_path,
-			NULL,
-		};
+		const char *out_pix_fmt = (pix_fmt && pix_fmt[0]) ? pix_fmt : "yuv420p";
+
+		char *argv[32];
+		size_t i = 0;
+		argv[i++] = (char *)ffmpeg_bin;
+		argv[i++] = (char *)"-loglevel";
+		argv[i++] = (char *)"error";
+		argv[i++] = (char *)"-y";
+		argv[i++] = (char *)"-f";
+		argv[i++] = (char *)"rawvideo";
+		argv[i++] = (char *)"-pix_fmt";
+		argv[i++] = (char *)"bgra";
+		argv[i++] = (char *)"-s";
+		argv[i++] = size;
+		argv[i++] = (char *)"-framerate";
+		argv[i++] = rate;
+		argv[i++] = (char *)"-i";
+		argv[i++] = (char *)"-";
+		argv[i++] = (char *)"-vf";
+		argv[i++] = (char *)"crop=trunc(iw/2)*2:trunc(ih/2)*2";
+		argv[i++] = (char *)"-c:v";
+		argv[i++] = (char *)"libx264";
+		argv[i++] = (char *)"-preset";
+		argv[i++] = (char *)preset;
+		if (tune && tune[0]) {
+			argv[i++] = (char *)"-tune";
+			argv[i++] = (char *)tune;
+		}
+		argv[i++] = (char *)"-pix_fmt";
+		argv[i++] = (char *)out_pix_fmt;
+		argv[i++] = (char *)"-crf";
+		argv[i++] = crf_s;
+		argv[i++] = (char *)output_path;
+		argv[i] = NULL;
 		execvp(ffmpeg_bin, argv);
 		_exit(127);
 	}
@@ -95,7 +110,7 @@ int spawn_ffmpeg(const char *ffmpeg_bin, const char *preset,
 
 int wait_ffmpeg(pid_t pid) {
 	int status = 0;
-	if (waitpid_intr(pid, &status, "ffmpeg") != 0) return -1;
+	if (waitpid_intr(pid, &status, "ffmpeg", NULL) != 0) return -1;
 	if (WIFEXITED(status)) {
 		int code = WEXITSTATUS(status);
 		if (code == 0) return 0;
@@ -113,7 +128,8 @@ int wait_ffmpeg(pid_t pid) {
 }
 
 int compress_to_target_size(const char *ffmpeg_bin, const char *path,
-							int max_mb, double duration_secs) {
+							int max_mb, double duration_secs,
+							atomic_int *stop) {
 	if (duration_secs <= 0.0 || max_mb <= 0) return -1;
 
 	long long target_bytes = (long long)max_mb * 1024 * 1024;
@@ -167,7 +183,7 @@ int compress_to_target_size(const char *ffmpeg_bin, const char *path,
 	(void)setpgid(pid, pid);
 
 	int status = 0;
-	if (waitpid_intr(pid, &status, "ffmpeg compress") != 0) {
+	if (waitpid_intr(pid, &status, "ffmpeg compress", stop) != 0) {
 		unlink(tmp_path);
 		free(tmp_path);
 		return -1;

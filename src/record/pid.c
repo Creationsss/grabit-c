@@ -14,12 +14,24 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
-static const char PID_FILE[] = "/tmp/grabit_recording.pid";
+static const char *pid_file_path(void) {
+	static char path[256];
+	const char *xdg = getenv("XDG_RUNTIME_DIR");
+	if (xdg && xdg[0] == '/') {
+		struct stat st;
+		if (stat(xdg, &st) == 0 && S_ISDIR(st.st_mode)) {
+			snprintf(path, sizeof path, "%s/grabit_recording.pid", xdg);
+			return path;
+		}
+	}
+	return "/tmp/grabit_recording.pid";
+}
 
 static pid_t read_pid_file(void) {
-	FILE *f = fopen(PID_FILE, "r");
+	FILE *f = fopen(pid_file_path(), "r");
 	if (!f) return 0;
 	char buf[32] = {0};
 	if (!fgets(buf, sizeof buf, f)) {
@@ -34,26 +46,26 @@ static pid_t read_pid_file(void) {
 }
 
 int write_pid_file_excl(pid_t p) {
-	int fd = open(PID_FILE, O_WRONLY | O_CREAT | O_EXCL, 0644);
+	int fd = open(pid_file_path(), O_WRONLY | O_CREAT | O_EXCL, 0644);
 	if (fd < 0) return -1;
 	char buf[32];
 	int n = snprintf(buf, sizeof buf, "%d\n", (int)p);
 	if (n < 0) {
 		close(fd);
-		unlink(PID_FILE);
+		unlink(pid_file_path());
 		return -1;
 	}
 	ssize_t w = write(fd, buf, (size_t)n);
 	close(fd);
 	if (w != n) {
-		unlink(PID_FILE);
+		unlink(pid_file_path());
 		return -1;
 	}
 	return 0;
 }
 
 void unlink_pid_file(void) {
-	unlink(PID_FILE);
+	unlink(pid_file_path());
 }
 
 static bool process_alive(pid_t p) {
@@ -82,7 +94,7 @@ int stop_running_recording(void) {
 	if (prev <= 0) return -1;
 	if (!process_alive(prev) || !is_grabit_process(prev)) {
 		log_warn("removing stale recording pidfile (pid %d not a running grabit)", (int)prev);
-		unlink(PID_FILE);
+		unlink(pid_file_path());
 		return -1;
 	}
 	log_info("stopping recording (pid %d)", (int)prev);

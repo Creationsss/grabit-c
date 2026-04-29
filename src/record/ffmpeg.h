@@ -4,9 +4,11 @@
 #ifndef GRABIT_RECORD_FFMPEG_H
 #define GRABIT_RECORD_FFMPEG_H
 
+#include <stdatomic.h>
 #include <sys/types.h>
 
 int spawn_ffmpeg(const char *ffmpeg_bin, const char *preset,
+				 const char *tune, const char *pix_fmt,
 				 int width, int height, int fps, int crf,
 				 const char *output_path,
 				 pid_t *child_pid, int *write_fd);
@@ -14,6 +16,7 @@ int spawn_ffmpeg(const char *ffmpeg_bin, const char *preset,
 int wait_ffmpeg(pid_t pid);
 
 int compress_to_target_size(const char *ffmpeg_bin, const char *path,
-							int max_mb, double duration_secs);
+							int max_mb, double duration_secs,
+							atomic_int *stop);
 
 #endif

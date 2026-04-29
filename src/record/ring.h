@@ -5,7 +5,7 @@
 #define GRABIT_RECORD_RING_H
 
 #include <pthread.h>
-#include <signal.h>
+#include <stdatomic.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -25,6 +25,7 @@ struct buf_pool {
 int pool_init(struct buf_pool *p, size_t n, size_t buf_size);
 void pool_destroy(struct buf_pool *p);
 void *pool_acquire(struct buf_pool *p);
+void *pool_try_acquire(struct buf_pool *p);
 void pool_release(struct buf_pool *p, void *buf);
 
 struct frame {
@@ -54,7 +55,7 @@ struct enc_state {
 	struct ring *ring;
 	int write_fd;
 	bool write_failed;
-	volatile sig_atomic_t *stop;
+	atomic_int *stop;
 };
 
 void ring_init(struct ring *r);
@@ -62,6 +63,7 @@ void ring_destroy(struct ring *r);
 void ring_push(struct ring *r, const struct frame *f);
 int ring_pop(struct ring *r, struct frame *out);
 void ring_stop(struct ring *r);
+void ring_record_drop(struct ring *r);
 
 void *encoder_thread(void *arg);
 

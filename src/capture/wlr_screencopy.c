@@ -151,6 +151,7 @@ static int run_capture(struct grabit_wl_state *s, struct sc_state *c, struct ima
 int capture_output_full(struct grabit_wl_state *s, struct grabit_output *o,
 						struct image *out) {
 	if (!s || !s->screencopy_manager || !o || !out) return -1;
+	if (o->dead || !o->wl_output) return -1;
 	memset(out, 0, sizeof *out);
 
 	struct sc_state c = {.wls = s};
@@ -170,6 +171,7 @@ int capture_output_region(struct grabit_wl_state *s, struct grabit_output *o,
 						  struct image *out) {
 	if (!s || !s->screencopy_manager || !o || !out) return -1;
 	if (w <= 0 || h <= 0) return -1;
+	if (o->dead || !o->wl_output) return -1;
 	memset(out, 0, sizeof *out);
 
 	struct sc_state c = {.wls = s};

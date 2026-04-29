@@ -179,6 +179,7 @@ static void registry_global(void *data, struct wl_registry *reg, uint32_t name,
 		if (!o) return;
 		o->state = s;
 		o->scale = 1;
+		o->global_name = name;
 		uint32_t v = version > 4 ? 4 : version;
 		o->wl_output = wl_registry_bind(reg, name, &wl_output_interface, v);
 		wl_output_add_listener(o->wl_output, &wl_output_listener_g, o);
@@ -219,9 +220,24 @@ static void registry_global(void *data, struct wl_registry *reg, uint32_t name,
 }
 
 static void registry_global_remove(void *data, struct wl_registry *reg, uint32_t name) {
-	(void)data;
 	(void)reg;
-	(void)name;
+	struct grabit_wl_state *s = data;
+	for (size_t i = 0; i < s->n_outputs; i++) {
+		struct grabit_output *o = s->outputs[i];
+		if (o->dead || o->global_name != name) continue;
+		o->dead = true;
+		log_warn("output %s removed mid-session; recording will black-fill its region",
+				 o->name ? o->name : "?");
+		if (o->xdg_output) {
+			zxdg_output_v1_destroy(o->xdg_output);
+			o->xdg_output = NULL;
+		}
+		if (o->wl_output) {
+			wl_output_destroy(o->wl_output);
+			o->wl_output = NULL;
+		}
+		return;
+	}
 }
 
 static const struct wl_registry_listener registry_listener_g = {

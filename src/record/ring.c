@@ -51,6 +51,20 @@ void *pool_acquire(struct buf_pool *p) {
 	}
 }
 
+void *pool_try_acquire(struct buf_pool *p) {
+	pthread_mutex_lock(&p->mu);
+	for (size_t i = 0; i < p->n; i++) {
+		if (!p->busy[i]) {
+			p->busy[i] = true;
+			void *ret = p->slots[i];
+			pthread_mutex_unlock(&p->mu);
+			return ret;
+		}
+	}
+	pthread_mutex_unlock(&p->mu);
+	return NULL;
+}
+
 void pool_release(struct buf_pool *p, void *buf) {
 	pthread_mutex_lock(&p->mu);
 	for (size_t i = 0; i < p->n; i++) {
@@ -121,6 +135,12 @@ void ring_stop(struct ring *r) {
 	pthread_mutex_lock(&r->mu);
 	r->stopped = true;
 	pthread_cond_broadcast(&r->cv_data);
+	pthread_mutex_unlock(&r->mu);
+}
+
+void ring_record_drop(struct ring *r) {
+	pthread_mutex_lock(&r->mu);
+	r->dropped++;
 	pthread_mutex_unlock(&r->mu);
 }
 

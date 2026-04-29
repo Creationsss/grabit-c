@@ -418,8 +418,30 @@ static bool valid_recording_key(const char *key) {
 	if (strcmp(leaf, "cursor") == 0) return true;
 	if (strcmp(leaf, "ffmpeg") == 0) return true;
 	if (strcmp(leaf, "preset") == 0) return true;
+	if (strcmp(leaf, "tune") == 0) return true;
+	if (strcmp(leaf, "pix_fmt") == 0) return true;
 	return false;
 }
+
+static const char *VALS_x264_tune[] = {
+	"film",
+	"animation",
+	"grain",
+	"stillimage",
+	"psnr",
+	"ssim",
+	"fastdecode",
+	"zerolatency",
+	NULL,
+};
+
+static const char *VALS_pix_fmt[] = {
+	"yuv420p",
+	"yuv422p",
+	"yuv444p",
+	"yuv420p10le",
+	NULL,
+};
 
 static const char *VALS_x264_preset[] = {
 	"ultrafast",
@@ -471,6 +493,15 @@ int config_set(struct config *c, const char *key, const char *value) {
 	if (strcmp(key, "recording.preset") == 0 && !in_list(value, VALS_x264_preset)) {
 		log_error("recording.preset must be one of "
 				  "ultrafast|superfast|veryfast|faster|fast|medium|slow|slower|veryslow");
+		return -1;
+	}
+	if (strcmp(key, "recording.tune") == 0 && value[0] && !in_list(value, VALS_x264_tune)) {
+		log_error("recording.tune must be one of "
+				  "film|animation|grain|stillimage|psnr|ssim|fastdecode|zerolatency");
+		return -1;
+	}
+	if (strcmp(key, "recording.pix_fmt") == 0 && !in_list(value, VALS_pix_fmt)) {
+		log_error("recording.pix_fmt must be one of yuv420p|yuv422p|yuv444p|yuv420p10le");
 		return -1;
 	}
 	if (strcmp(key, "default_action") == 0 && !in_list(value, VALS_default_action)) {
@@ -694,6 +725,15 @@ static int example_for_key(const char *key, const char **example_out, const char
 			*def_out = "fast";
 			return 0;
 		}
+		if (strcmp(leaf, "tune") == 0) {
+			*example_out = "film|animation|grain|stillimage|psnr|ssim|fastdecode|zerolatency (empty to disable)";
+			return 0;
+		}
+		if (strcmp(leaf, "pix_fmt") == 0) {
+			*example_out = "yuv420p|yuv422p|yuv444p|yuv420p10le";
+			*def_out = "yuv420p";
+			return 0;
+		}
 	}
 	return -1;
 }
@@ -741,6 +781,8 @@ static void print_set_help(void) {
 	puts("  recording.fps");
 	puts("  recording.crf");
 	puts("  recording.preset");
+	puts("  recording.tune");
+	puts("  recording.pix_fmt");
 	puts("  recording.max_size_mb");
 	puts("  recording.cursor");
 	puts("  recording.ffmpeg");
