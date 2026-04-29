@@ -13,6 +13,7 @@
 #include "paths.h"
 #include "record/compose.h"
 #include "record/ffmpeg.h"
+#include "record/overlay.h"
 #include "record/pid.h"
 #include "record/ring.h"
 #include "region/region.h"
@@ -332,9 +333,13 @@ int record_toggle(struct config *cfg, const struct args *a) {
 		}
 	}
 
+	struct overlay_state *overlay = overlay_start(&s, r);
+
 	int64_t t0 = now_ns();
 	capture_loop(&s, &layout, pool_used ? &pool : NULL, fps, cursor, &ring);
 	int64_t t1 = now_ns();
+
+	overlay_stop(overlay);
 
 	ring_stop(&ring);
 	pthread_join(enc, NULL);
