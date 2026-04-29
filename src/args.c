@@ -17,7 +17,14 @@ void args_pre_scan(int argc, char **argv, bool *silent, bool *debug) {
 }
 
 static int set_action(struct args *a, enum action act, const char *flag) {
-	if (a->action != ACTION_NONE && a->action != act) {
+	if (a->action == act) return 0;
+	if ((a->action == ACTION_RECORD && act == ACTION_OUTPUT) ||
+	    (a->action == ACTION_OUTPUT && act == ACTION_RECORD)) {
+		a->action = ACTION_RECORD;
+		a->no_upload = true;
+		return 0;
+	}
+	if (a->action != ACTION_NONE) {
 		log_error("conflicting actions: %s contradicts an earlier flag", flag);
 		return -1;
 	}
@@ -96,6 +103,11 @@ int args_parse(int argc, char **argv, struct args *out) {
 	if (out->service && out->action != ACTION_UPLOAD &&
 	    out->action != ACTION_RECORD && out->action != ACTION_NONE) {
 		log_error("--%s only makes sense with -u or --record", out->service);
+		return -1;
+	}
+
+	if (out->action == ACTION_RECORD && out->file) {
+		log_error("--record cannot be combined with -f");
 		return -1;
 	}
 

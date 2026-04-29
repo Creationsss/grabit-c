@@ -154,6 +154,7 @@ int capture_output_full(struct grabit_wl_state *s, struct grabit_output *o,
 
 int capture_output_region(struct grabit_wl_state *s, struct grabit_output *o,
                           int32_t x, int32_t y, int32_t w, int32_t h,
+                          bool overlay_cursor,
                           struct image *out) {
 	if (!s || !s->screencopy_manager || !o || !out) return -1;
 	if (w <= 0 || h <= 0) return -1;
@@ -161,7 +162,7 @@ int capture_output_region(struct grabit_wl_state *s, struct grabit_output *o,
 
 	struct sc_state c = { .wls = s };
 	c.frame = zwlr_screencopy_manager_v1_capture_output_region(
-		s->screencopy_manager, 0, o->wl_output, x, y, w, h);
+		s->screencopy_manager, overlay_cursor ? 1 : 0, o->wl_output, x, y, w, h);
 	if (!c.frame) {
 		log_error("zwlr_screencopy_manager_v1_capture_output_region: NULL");
 		return -1;

@@ -6,11 +6,22 @@
 
 #include <stddef.h>
 
+struct config;
+
 const char *paths_config_dir(void);
 const char *paths_config_file(void);
 
 int paths_mkdir_p(const char *path);
 
 int paths_atomic_write(const char *path, const void *buf, size_t len);
+
+enum paths_dest {
+	PATHS_DEST_TEMP,
+	PATHS_DEST_PICTURES,
+	PATHS_DEST_VIDEOS,
+};
+
+char *paths_build_output(struct config *cfg, const char *cli_template,
+                         const char *extension, enum paths_dest dest);
 
 #endif

@@ -4,7 +4,10 @@
 #define _XOPEN_SOURCE 700
 #include "paths.h"
 
+#include "config.h"
+#include "hyprland.h"
 #include "log.h"
+#include "template.h"
 #include "util.h"
 
 #include <errno.h>
@@ -133,4 +136,72 @@ fail: {
 	errno = saved;
 	return -1;
 }
+}
+
+static char *resolve_dir(struct config *cfg, enum paths_dest dest) {
+	if (dest == PATHS_DEST_TEMP) return strdup("/tmp");
+
+	const char *d = config_get(cfg, "save_dir");
+	if (d && d[0]) return strdup(d);
+
+	if (dest == PATHS_DEST_VIDEOS) {
+		const char *xdg = getenv("XDG_VIDEOS_DIR");
+		if (xdg && xdg[0]) return strdup(xdg);
+		const char *home = getenv("HOME");
+		if (home && home[0]) {
+			char *out = NULL;
+			(void)grabit_xasprintf(&out, "%s/Videos", home);
+			if (out) return out;
+		}
+	} else {
+		const char *home = getenv("HOME");
+		if (home && home[0]) {
+			char *out = NULL;
+			(void)grabit_xasprintf(&out, "%s/Pictures", home);
+			if (out) return out;
+		}
+	}
+	return strdup("/tmp");
+}
+
+char *paths_build_output(struct config *cfg, const char *cli_template,
+                         const char *extension, enum paths_dest dest) {
+	const char *tpl = cli_template;
+	if (!tpl) tpl = config_get(cfg, "filename");
+	if (!tpl) {
+		const char *preset = config_get(cfg, "filename_preset");
+		tpl = template_for_preset(preset);
+	}
+
+	char *win_class = NULL, *win_title = NULL;
+	(void)grabit_hyprland_active_window(&win_class, &win_title);
+	struct template_ctx ctx = {
+		.window_class = win_class,
+		.window_title = win_title,
+	};
+	char *raw = template_expand(tpl, &ctx);
+	free(win_class);
+	free(win_title);
+	if (!raw) return NULL;
+	char *clean = template_sanitize(raw);
+	free(raw);
+	if (!clean || !clean[0]) {
+		free(clean);
+		return NULL;
+	}
+
+	char *dir = resolve_dir(cfg, dest);
+	if (!dir) { free(clean); return NULL; }
+	if (paths_mkdir_p(dir) != 0) {
+		log_error("mkdir %s: %s", dir, strerror(errno));
+		free(dir);
+		free(clean);
+		return NULL;
+	}
+
+	char *path = NULL;
+	(void)grabit_xasprintf(&path, "%s/%s%s", dir, clean, extension);
+	free(dir);
+	free(clean);
+	return path;
 }

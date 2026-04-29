@@ -21,6 +21,7 @@ struct args {
 	bool         debug;
 	bool         edit;
 	bool         no_tray;
+	bool         no_upload;
 	const char  *file;
 	const char  *service;
 	const char  *filename_tpl;

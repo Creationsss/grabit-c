@@ -4,7 +4,6 @@
 #define _XOPEN_SOURCE 700
 
 #include <ctype.h>
-#include <errno.h>
 #include <signal.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -17,15 +16,13 @@
 #include "capture/png.h"
 #include "clipboard/clipboard.h"
 #include "config.h"
-#include "hyprland.h"
 #include "log.h"
 #include "mime.h"
 #include "notify/notify.h"
 #include "paths.h"
+#include "record/record.h"
 #include "region/region.h"
-#include "template.h"
 #include "upload/upload.h"
-#include "util.h"
 #include "wl.h"
 
 #ifndef GRABIT_VERSION
@@ -81,6 +78,8 @@ static int print_help(void) {
 	    "  -f <file>         Use <file> instead of taking a screenshot\n"
 	    "  --tesseract       Capture, OCR, copy text to clipboard\n"
 	    "  --record          Toggle screen recording (re-run to stop)\n"
+	    "                    With --save: skip auto-upload even if default_action=upload\n"
+	    "                    With --<service>: upload to that service after recording\n"
 	    "  --no-tray         Skip SNI tray during recording\n"
 	    "  -e, --edit        Open the captured file in an editor first\n"
 	    "  --silent          Suppress notifications and sound\n"
@@ -106,53 +105,8 @@ static int print_help(void) {
 	return 0;
 }
 
-static char *resolve_save_dir(struct config *cfg) {
-	const char *d = config_get(cfg, "save_dir");
-	if (d && d[0]) {
-		char *r = strdup(d);
-		if (!r) log_error("oom: resolve_save_dir");
-		return r;
-	}
-	const char *home = getenv("HOME");
-	if (!home || !home[0]) home = "/tmp";
-	char *out = NULL;
-	if (grabit_xasprintf(&out, "%s/Pictures", home) != 0) {
-		log_error("oom: resolve_save_dir");
-		return NULL;
-	}
-	return out;
-}
-
 static char *build_capture_path(const struct args *a, struct config *cfg,
                                 enum action eff, bool *is_temp) {
-	const char *tpl = a->filename_tpl;
-	if (!tpl) tpl = config_get(cfg, "filename");
-	if (!tpl) {
-		const char *preset = config_get(cfg, "filename_preset");
-		tpl = template_for_preset(preset);
-	}
-
-	char *win_class = NULL, *win_title = NULL;
-	(void)grabit_hyprland_active_window(&win_class, &win_title);
-	struct template_ctx ctx = {
-		.window_class = win_class,
-		.window_title = win_title,
-	};
-	char *raw = template_expand(tpl, &ctx);
-	free(win_class);
-	free(win_title);
-	if (!raw) {
-		log_error("template expansion failed");
-		return NULL;
-	}
-	char *clean = template_sanitize(raw);
-	free(raw);
-	if (!clean || !clean[0]) {
-		free(clean);
-		log_error("template sanitization produced empty filename");
-		return NULL;
-	}
-
 	bool save;
 	if (eff == ACTION_OUTPUT) {
 		save = true;
@@ -160,34 +114,9 @@ static char *build_capture_path(const struct args *a, struct config *cfg,
 		const char *si = config_get(cfg, "save_captures");
 		save = si && strcmp(si, "true") == 0;
 	}
-
-	char *path = NULL;
-	if (save) {
-		char *dir = resolve_save_dir(cfg);
-		if (!dir) {
-			free(clean);
-			return NULL;
-		}
-		if (paths_mkdir_p(dir) != 0) {
-			log_error("could not create save dir %s: %s", dir, strerror(errno));
-			free(dir);
-			free(clean);
-			return NULL;
-		}
-		if (grabit_xasprintf(&path, "%s/%s.png", dir, clean) != 0) {
-			log_error("oom: build_capture_path");
-		}
-		free(dir);
-		*is_temp = false;
-	} else {
-		if (grabit_xasprintf(&path, "/tmp/%s.png", clean) != 0) {
-			log_error("oom: build_capture_path");
-		}
-		*is_temp = true;
-	}
-
-	free(clean);
-	return path;
+	*is_temp = !save;
+	enum paths_dest dest = save ? PATHS_DEST_PICTURES : PATHS_DEST_TEMP;
+	return paths_build_output(cfg, a->filename_tpl, ".png", dest);
 }
 
 static int do_freeze_capture(struct grabit_wl_state *s, const char *path) {
@@ -324,69 +253,6 @@ static char *capture_to_file(const struct args *a, struct config *cfg,
 	return path;
 }
 
-static int upload_preflight(struct config *cfg, const struct args *a, const char **service_out) {
-	const char *service = a->service;
-	if (!service) service = config_get(cfg, "service");
-	if (!service || !service[0]) {
-		log_error("no service: pass --<service> or `grabit set service <name>`");
-		notify_send(&(struct notify_opts){
-			.summary = "grabit: setup needed",
-			.body    = "no upload service set — see terminal for details",
-			.force   = true,
-		});
-		return -1;
-	}
-	if (!upload_service_known(service)) {
-		log_error("unknown service: %s", service);
-		notify_send(&(struct notify_opts){
-			.summary = "grabit: setup needed",
-			.body    = "unknown service — see terminal for details",
-			.force   = true,
-		});
-		return -1;
-	}
-
-	char env_key[64];
-	snprintf(env_key, sizeof env_key, "GRABIT_%s_AUTH", service);
-	for (char *p = env_key + 7; *p; p++) *p = (char)toupper((unsigned char)*p);
-	const char *env_auth = getenv(env_key);
-	char cfg_key[64];
-	snprintf(cfg_key, sizeof cfg_key, "services.%s.auth", service);
-	const char *cfg_auth = config_get(cfg, cfg_key);
-	if ((!env_auth || !env_auth[0]) && (!cfg_auth || !cfg_auth[0])) {
-		log_error("no auth token for %s.", service);
-		log_error("  recommended (password-manager-friendly):");
-		log_error("    export %s=\"$(pass show grabit/%s)\"", env_key, service);
-		log_error("  or fallback (plaintext in config 0600):");
-		log_error("    grabit set %s <token>", cfg_key);
-		char body[128];
-		snprintf(body, sizeof body, "%s auth token not set — see terminal for details", service);
-		notify_send(&(struct notify_opts){
-			.summary = "grabit: setup needed",
-			.body    = body,
-			.force   = true,
-		});
-		return -1;
-	}
-
-	if (strcmp(service, "zipline") == 0) {
-		const char *domain = config_get(cfg, "services.zipline.domain");
-		if (!domain || !domain[0]) {
-			log_error("zipline requires services.zipline.domain (e.g. https://example.com/api/upload)");
-			log_error("    grabit set services.zipline.domain https://<host>/api/upload");
-			notify_send(&(struct notify_opts){
-				.summary = "grabit: setup needed",
-				.body    = "zipline domain not set — see terminal for details",
-				.force   = true,
-			});
-			return -1;
-		}
-	}
-
-	*service_out = service;
-	return 0;
-}
-
 static int run_upload(struct config *cfg, const struct args *a) {
 	const char *service = NULL;
 	if (upload_preflight(cfg, a, &service) != 0) return 1;
@@ -515,15 +381,7 @@ static int run_ocr(struct config *cfg, const struct args *a) {
 }
 
 static int run_record(struct config *cfg, const struct args *a) {
-	(void)cfg;
-	(void)a;
-	log_error("--record not yet implemented.");
-	notify_send(&(struct notify_opts){
-		.summary = "grabit",
-		.body    = "--record not yet implemented",
-		.force   = true,
-	});
-	return 1;
+	return record_toggle(cfg, a);
 }
 
 static int run(const struct args *a) {

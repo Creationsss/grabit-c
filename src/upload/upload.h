@@ -7,8 +7,11 @@
 #include <stdbool.h>
 
 struct config;
+struct args;
 
 bool upload_service_known(const char *name);
+
+int upload_preflight(struct config *cfg, const struct args *a, const char **service_out);
 
 struct upload_result {
 	long  http_code;

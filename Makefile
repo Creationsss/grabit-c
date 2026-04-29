@@ -45,8 +45,8 @@ BUS_DEFINE :=
 endif
 
 PKGS_CORE := json-c libcurl wayland-client wayland-cursor cairo xkbcommon $(BUS_PKG)
-CFLAGS    += $(BUS_DEFINE) $(shell $(PKG_CONFIG) --cflags $(PKGS_CORE))
-LDLIBS    += $(shell $(PKG_CONFIG) --libs   $(PKGS_CORE)) -lmagic -lrt
+CFLAGS    += $(BUS_DEFINE) $(shell $(PKG_CONFIG) --cflags $(PKGS_CORE)) -pthread
+LDLIBS    += $(shell $(PKG_CONFIG) --libs   $(PKGS_CORE)) -lmagic -lrt -pthread
 
 WL_PROTOCOLS := \
 	wlr-screencopy-unstable-v1 \
@@ -87,6 +87,10 @@ GRABIT_SRCS := \
 	src/clipboard/wlr_data_control.c \
 	src/notify/sd_bus.c \
 	src/region/wlr_layer.c \
+	src/record/record.c \
+	src/record/ring.c \
+	src/record/ffmpeg.c \
+	src/record/pid.c \
 	src/upload/upload.c
 
 GRABIT_VENDOR_SRCS := \

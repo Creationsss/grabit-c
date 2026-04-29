@@ -4,8 +4,10 @@
 #define _XOPEN_SOURCE 700
 #include "upload/upload.h"
 
+#include "args.h"
 #include "config.h"
 #include "log.h"
+#include "notify/notify.h"
 #include "util.h"
 
 #include <ctype.h>
@@ -44,6 +46,69 @@ static const struct service *find_service(const char *name) {
 }
 
 bool upload_service_known(const char *name) { return find_service(name) != NULL; }
+
+int upload_preflight(struct config *cfg, const struct args *a, const char **service_out) {
+	const char *service = a->service;
+	if (!service) service = config_get(cfg, "service");
+	if (!service || !service[0]) {
+		log_error("no service: pass --<service> or `grabit set service <name>`");
+		notify_send(&(struct notify_opts){
+			.summary = "grabit: setup needed",
+			.body    = "no upload service set — see terminal for details",
+			.force   = true,
+		});
+		return -1;
+	}
+	if (!upload_service_known(service)) {
+		log_error("unknown service: %s", service);
+		notify_send(&(struct notify_opts){
+			.summary = "grabit: setup needed",
+			.body    = "unknown service — see terminal for details",
+			.force   = true,
+		});
+		return -1;
+	}
+
+	char env_key[64];
+	snprintf(env_key, sizeof env_key, "GRABIT_%s_AUTH", service);
+	for (char *p = env_key + 7; *p; p++) *p = (char)toupper((unsigned char)*p);
+	const char *env_auth = getenv(env_key);
+	char cfg_key[64];
+	snprintf(cfg_key, sizeof cfg_key, "services.%s.auth", service);
+	const char *cfg_auth = config_get(cfg, cfg_key);
+	if ((!env_auth || !env_auth[0]) && (!cfg_auth || !cfg_auth[0])) {
+		log_error("no auth token for %s.", service);
+		log_error("  recommended (password-manager-friendly):");
+		log_error("    export %s=\"$(pass show grabit/%s)\"", env_key, service);
+		log_error("  or fallback (plaintext in config 0600):");
+		log_error("    grabit set %s <token>", cfg_key);
+		char body[128];
+		snprintf(body, sizeof body, "%s auth token not set — see terminal for details", service);
+		notify_send(&(struct notify_opts){
+			.summary = "grabit: setup needed",
+			.body    = body,
+			.force   = true,
+		});
+		return -1;
+	}
+
+	if (strcmp(service, "zipline") == 0) {
+		const char *domain = config_get(cfg, "services.zipline.domain");
+		if (!domain || !domain[0]) {
+			log_error("zipline requires services.zipline.domain (e.g. https://example.com/api/upload)");
+			log_error("    grabit set services.zipline.domain https://<host>/api/upload");
+			notify_send(&(struct notify_opts){
+				.summary = "grabit: setup needed",
+				.body    = "zipline domain not set — see terminal for details",
+				.force   = true,
+			});
+			return -1;
+		}
+	}
+
+	*service_out = service;
+	return 0;
+}
 
 static size_t curl_write_cb(char *ptr, size_t size, size_t nmemb, void *user) {
 	struct grabit_buf *b = user;

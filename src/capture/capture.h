@@ -4,6 +4,7 @@
 #ifndef GRABIT_CAPTURE_H
 #define GRABIT_CAPTURE_H
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -26,6 +27,7 @@ int capture_output_full(struct grabit_wl_state *s, struct grabit_output *o,
 
 int capture_output_region(struct grabit_wl_state *s, struct grabit_output *o,
                           int32_t x, int32_t y, int32_t w, int32_t h,
+                          bool overlay_cursor,
                           struct image *out);
 
 #endif

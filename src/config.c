@@ -382,9 +382,49 @@ static bool valid_service_key(const char *key) {
 	return false;
 }
 
+static bool valid_recording_key(const char *key) {
+	if (strncmp(key, "recording.", 10) != 0) return false;
+	const char *leaf = key + 10;
+	if (strcmp(leaf, "fps") == 0)         return true;
+	if (strcmp(leaf, "crf") == 0)         return true;
+	if (strcmp(leaf, "max_size_mb") == 0) return true;
+	if (strcmp(leaf, "cursor") == 0)      return true;
+	if (strcmp(leaf, "ffmpeg") == 0)      return true;
+	return false;
+}
+
+static int validate_int_in_range(const char *key, const char *value, long lo, long hi) {
+	if (!*value) {
+		log_error("%s must be an integer", key);
+		return -1;
+	}
+	char *end = NULL;
+	long n = strtol(value, &end, 10);
+	if (!end || *end != '\0') {
+		log_error("%s must be an integer", key);
+		return -1;
+	}
+	if (n < lo || n > hi) {
+		log_error("%s must be between %ld and %ld", key, lo, hi);
+		return -1;
+	}
+	return 0;
+}
+
 int config_set(struct config *c, const char *key, const char *value) {
-	if (!valid_top_key(key) && !valid_service_key(key)) {
+	if (!valid_top_key(key) && !valid_service_key(key) && !valid_recording_key(key)) {
 		log_error("unknown config key: %s", key);
+		return -1;
+	}
+	if (strcmp(key, "recording.fps") == 0 &&
+	    validate_int_in_range(key, value, 1, 120) != 0) return -1;
+	if (strcmp(key, "recording.crf") == 0 &&
+	    validate_int_in_range(key, value, 0, 51) != 0) return -1;
+	if (strcmp(key, "recording.max_size_mb") == 0 &&
+	    validate_int_in_range(key, value, 0, 100000) != 0) return -1;
+	if (strcmp(key, "recording.cursor") == 0 &&
+	    strcmp(value, "true") != 0 && strcmp(value, "false") != 0) {
+		log_error("recording.cursor must be true or false");
 		return -1;
 	}
 	if (strcmp(key, "default_action") == 0 && !in_list(value, VALS_default_action)) {
@@ -551,21 +591,31 @@ static int example_for_key(const char *key, const char **example_out, const char
 			if (h) { *example_out = zl_header_example(h); return 0; }
 		}
 	}
+	if (strncmp(key, "recording.", 10) == 0) {
+		const char *leaf = key + 10;
+		if (strcmp(leaf, "fps") == 0)         { *example_out = "1-120";  *def_out = "30"; return 0; }
+		if (strcmp(leaf, "crf") == 0)         { *example_out = "0-51";   *def_out = "23"; return 0; }
+		if (strcmp(leaf, "max_size_mb") == 0) { *example_out = "100 (0 to disable)"; return 0; }
+		if (strcmp(leaf, "cursor") == 0)      { *example_out = "true|false"; *def_out = "true"; return 0; }
+		if (strcmp(leaf, "ffmpeg") == 0)      { *example_out = "ffmpeg | /usr/bin/ffmpeg"; *def_out = "ffmpeg"; return 0; }
+	}
 	return -1;
 }
 
-static void print_example(const char *example, const char *def) {
+static bool print_example(const char *example, const char *def) {
 	if (!def) {
 		printf("%s", example);
-		return;
+		return false;
 	}
 	size_t deflen = strlen(def);
 	const char *p = example;
+	bool starred = false;
 	while (*p) {
 		const char *bar = strchr(p, '|');
 		size_t len = bar ? (size_t)(bar - p) : strlen(p);
-		if (len == deflen && strncmp(p, def, len) == 0) {
+		if (!starred && len == deflen && strncmp(p, def, len) == 0) {
 			printf("%.*s*", (int)len, p);
+			starred = true;
 		} else {
 			printf("%.*s", (int)len, p);
 		}
@@ -573,6 +623,7 @@ static void print_example(const char *example, const char *def) {
 		printf("|");
 		p = bar + 1;
 	}
+	return starred;
 }
 
 static void print_set_help(void) {
@@ -590,6 +641,12 @@ static void print_set_help(void) {
 	for (size_t i = 0; i < ZIPLINE_HEADERS_N; i++) {
 		printf("    %s\n", ZIPLINE_HEADERS[i].name);
 	}
+	puts("");
+	puts("  recording.fps");
+	puts("  recording.crf");
+	puts("  recording.max_size_mb");
+	puts("  recording.cursor");
+	puts("  recording.ffmpeg");
 }
 
 int cmd_set(int argc, char **argv) {
@@ -605,9 +662,12 @@ int cmd_set(int argc, char **argv) {
 			return 1;
 		}
 		printf("%s = ", argv[0]);
-		print_example(ex, def);
+		bool starred = print_example(ex, def);
 		printf("\n");
-		if (def) printf("(* = default)\n");
+		if (def) {
+			if (starred) printf("(* = default)\n");
+			else         printf("default: %s\n", def);
+		}
 
 		struct config c = {0};
 		const char *current = NULL;
