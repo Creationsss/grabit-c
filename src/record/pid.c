@@ -5,6 +5,7 @@
 #include "record/pid.h"
 
 #include "log.h"
+#include "util.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -14,20 +15,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
 #include <unistd.h>
 
 static const char *pid_file_path(void) {
 	static char path[256];
-	const char *xdg = getenv("XDG_RUNTIME_DIR");
-	if (xdg && xdg[0] == '/') {
-		struct stat st;
-		if (stat(xdg, &st) == 0 && S_ISDIR(st.st_mode)) {
-			snprintf(path, sizeof path, "%s/grabit_recording.pid", xdg);
-			return path;
-		}
-	}
-	return "/tmp/grabit_recording.pid";
+	char dir[200];
+	if (grabit_runtime_dir(dir, sizeof dir) != 0) return "/tmp/grabit_recording.pid";
+	snprintf(path, sizeof path, "%s/grabit_recording.pid", dir);
+	return path;
 }
 
 static pid_t read_pid_file(void) {
@@ -68,31 +63,10 @@ void unlink_pid_file(void) {
 	unlink(pid_file_path());
 }
 
-static bool process_alive(pid_t p) {
-	if (p <= 0) return false;
-	if (kill(p, 0) == 0) return true;
-	return errno != ESRCH;
-}
-
-static bool is_grabit_process(pid_t p) {
-	if (p <= 0) return false;
-	char path[64];
-	snprintf(path, sizeof path, "/proc/%d/comm", (int)p);
-	FILE *f = fopen(path, "r");
-	if (!f) return false;
-	char comm[32] = {0};
-	bool ok = fgets(comm, sizeof comm, f) != NULL;
-	fclose(f);
-	if (!ok) return false;
-	char *nl = strchr(comm, '\n');
-	if (nl) *nl = '\0';
-	return strcmp(comm, "grabit") == 0;
-}
-
 int stop_running_recording(void) {
 	pid_t prev = read_pid_file();
 	if (prev <= 0) return -1;
-	if (!process_alive(prev) || !is_grabit_process(prev)) {
+	if (!grabit_process_alive(prev) || !grabit_is_grabit_process(prev)) {
 		log_warn("removing stale recording pidfile (pid %d not a running grabit)", (int)prev);
 		unlink(pid_file_path());
 		return -1;

@@ -6,6 +6,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <sys/types.h>
 
 #define GRABIT_MAX_PIXEL_SIDE 16384
 
@@ -14,6 +15,10 @@ int grabit_xasprintf(char **out, const char *fmt, ...) __attribute__((format(pri
 int grabit_shm_anon(const char *tag, size_t size);
 
 bool grabit_in_path(const char *bin);
+
+int grabit_runtime_dir(char *out, size_t cap);
+bool grabit_process_alive(pid_t pid);
+bool grabit_is_grabit_process(pid_t pid);
 
 struct grabit_buf {
 	char *data;

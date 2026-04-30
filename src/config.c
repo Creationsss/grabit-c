@@ -47,7 +47,7 @@ static const char *KNOWN_SERVICES[] = {
 	NULL,
 };
 
-static const char *VALS_default_action[] = {"upload", "copy", "save", NULL};
+static const char *VALS_default_action[] = {"upload", "copy", "save", "pin", NULL};
 static const char *VALS_filename_preset[] = {"date", "random", "uuid", "timestamp", NULL};
 
 static const char *VALS_zl_format[] = {"random", "date", "uuid", "name", "gfycat", NULL};
@@ -514,7 +514,7 @@ int config_set(struct config *c, const char *key, const char *value) {
 		return -1;
 	}
 	if (strcmp(key, "default_action") == 0 && !in_list(value, VALS_default_action)) {
-		log_error("default_action must be one of upload|copy|save");
+		log_error("default_action must be one of upload|copy|save|pin");
 		return -1;
 	}
 	if (strcmp(key, "filename_preset") == 0 && !in_list(value, VALS_filename_preset)) {

@@ -22,6 +22,7 @@
 #include "notify/notify.h"
 #include "ocr/ocr.h"
 #include "paths.h"
+#include "pin/pin.h"
 #include "record/record.h"
 #include "region/region.h"
 #include "sound/sound.h"
@@ -84,6 +85,10 @@ static int print_help(void) {
 		"                    With --save: skip auto-upload even if default_action=upload\n"
 		"                    With --<service>: upload to that service after recording\n"
 		"  --no-tray         Skip SNI tray during recording\n"
+		"  --pin             Capture and pin to desktop (click-through; stack any number)\n"
+		"  --grab            Make all pinned screenshots clickable (click closes that one)\n"
+		"  --release         Restore pinned screenshots to click-through\n"
+		"  --close-all       Dismiss every pinned screenshot\n"
 		"  -e, --edit        Open the captured file in an editor first\n"
 		"  --silent          Suppress notifications and sound\n"
 		"  -d                Enable debug logging to stderr\n"
@@ -125,7 +130,8 @@ static char *build_capture_path(const struct args *a, struct config *cfg,
 }
 
 static char *capture_to_file(const struct args *a, struct config *cfg,
-							 enum action eff, bool *is_temp) {
+							 enum action eff, bool *is_temp,
+							 struct rect *out_rect) {
 	*is_temp = false;
 	char *path = build_capture_path(a, cfg, eff, is_temp);
 	if (!path) return NULL;
@@ -144,7 +150,7 @@ static char *capture_to_file(const struct args *a, struct config *cfg,
 		return NULL;
 	}
 
-	int rc = grabit_freeze_capture(&s, path);
+	int rc = grabit_freeze_capture(&s, path, out_rect);
 	grabit_wl_finish(&s);
 
 	if (rc != 0) {
@@ -171,7 +177,7 @@ static int run_upload(struct config *cfg, const struct args *a) {
 			return 1;
 		}
 	} else {
-		path = capture_to_file(a, cfg, ACTION_UPLOAD, &is_temp);
+		path = capture_to_file(a, cfg, ACTION_UPLOAD, &is_temp, NULL);
 		if (!path) return 1;
 	}
 
@@ -230,7 +236,7 @@ static int run_copy(struct config *cfg, const struct args *a) {
 			return 1;
 		}
 	} else {
-		path = capture_to_file(a, cfg, ACTION_COPY, &is_temp);
+		path = capture_to_file(a, cfg, ACTION_COPY, &is_temp, NULL);
 		if (!path) return 1;
 	}
 
@@ -269,7 +275,7 @@ static int run_output(struct config *cfg, const struct args *a) {
 		return 0;
 	}
 	bool is_temp = false;
-	char *path = capture_to_file(a, cfg, ACTION_OUTPUT, &is_temp);
+	char *path = capture_to_file(a, cfg, ACTION_OUTPUT, &is_temp, NULL);
 	if (!path) return 1;
 
 	if (a->edit && grabit_edit_file(cfg, path) != 0) {
@@ -319,7 +325,7 @@ static int run_ocr(struct config *cfg, const struct args *a) {
 			return 1;
 		}
 	} else {
-		path = capture_to_file(a, cfg, ACTION_OCR, &is_temp);
+		path = capture_to_file(a, cfg, ACTION_OCR, &is_temp, NULL);
 		if (!path) return 1;
 	}
 
@@ -386,6 +392,39 @@ static int run_record(struct config *cfg, const struct args *a) {
 	return record_toggle(cfg, a);
 }
 
+static int run_pin(struct config *cfg, const struct args *a) {
+	bool is_temp = false;
+	char *path;
+	struct rect r = {0};
+	bool have_rect = false;
+	if (a->file) {
+		path = strdup(a->file);
+		if (!path) {
+			log_error("oom: run_pin");
+			return 1;
+		}
+	} else {
+		path = capture_to_file(a, cfg, ACTION_PIN, &is_temp, &r);
+		if (!path) return 1;
+		have_rect = (r.w > 0 && r.h > 0);
+	}
+
+	if (a->edit && grabit_edit_file(cfg, path) != 0) {
+		log_warn("edit failed; continuing with unedited file");
+	}
+
+	int rc = pin_spawn(cfg, path, have_rect ? &r : NULL);
+
+	if (rc == 0) grabit_sound_play(cfg);
+
+	if (is_temp) {
+		unlink(path);
+		clear_tmpfile();
+	}
+	free(path);
+	return rc == 0 ? 0 : 1;
+}
+
 static int run(const struct args *a) {
 	struct config cfg;
 	if (config_load(&cfg) != 0) return 1;
@@ -400,6 +439,8 @@ static int run(const struct args *a) {
 			eff = ACTION_COPY;
 		else if (def && strcmp(def, "save") == 0)
 			eff = ACTION_OUTPUT;
+		else if (def && strcmp(def, "pin") == 0)
+			eff = ACTION_PIN;
 	}
 
 	int rc;
@@ -419,8 +460,20 @@ static int run(const struct args *a) {
 	case ACTION_RECORD:
 		rc = run_record(&cfg, a);
 		break;
+	case ACTION_PIN:
+		rc = run_pin(&cfg, a);
+		break;
+	case ACTION_PIN_GRAB:
+		rc = pin_grab();
+		break;
+	case ACTION_PIN_RELEASE:
+		rc = pin_release();
+		break;
+	case ACTION_PIN_CLOSE_ALL:
+		rc = pin_close_all();
+		break;
 	default:
-		log_error("no action specified; try -u, -c, -o, --record, or --tesseract");
+		log_error("no action specified; try -u, -c, -o, --pin, --record, or --tesseract");
 		log_info("(or set a default with: grabit set default_action upload)");
 		rc = 1;
 		break;

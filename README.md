@@ -10,6 +10,7 @@ not supported: x11, kde, gnome.
 - region screenshots with native freeze + selector (no `slurp`/`grim` shellouts)
 - screen recording to mp4/h.264 with live overlay + sni tray icon
 - ocr (capture → text → clipboard) via libtesseract
+- pin captures to the desktop (always-on-top, click-through, draggable when grabbed)
 - six built-in uploaders: zipline, nest, fakecrime, ez, guns, pixelvault
 - filename templates (`%Y-%m-%d-%H-%M-%S`, `%w` window class, `%t` window title, `%r` random, `%u` uuid, `%s` unix ts, `%o` output name)
 - toml config + `grabit set/get/unset` schema-validated cli
@@ -73,6 +74,7 @@ grabit --zipline              # upload to a specific service
 grabit -o > /tmp/path.txt     # save and print path
 grabit --tesseract            # ocr a region, text into clipboard
 grabit --record               # toggle recording (run again to stop)
+grabit --pin                  # pin a region screenshot to the desktop
 grabit -f path.png -u         # upload an existing file
 ```
 
@@ -150,6 +152,28 @@ config keys (all optional):
 | `recording.max_size_mb` | (none) | re-encode if file exceeds this |
 | `recording.ffmpeg` | `ffmpeg` | path to ffmpeg binary |
 
+## pin
+
+```sh
+grabit --pin                  # capture a region; pins it to the desktop where it was grabbed
+grabit --grab                 # all pins become interactive (X close button + draggable)
+grabit --release              # pins go back to click-through
+grabit --close-all            # dismiss every pin
+```
+
+each pin is a long-lived process holding a wlr-layer-shell overlay surface. they stack as you create them, are click-through by default, and ignore other layers' exclusive zones (so the position matches exactly where the region was selected, even with status bars).
+
+interactive mode is meant to be wired to a hold-bind in your compositor. example for hyprland:
+
+```
+bindrn = SUPER SHIFT, mouse:272, exec, grabit --grab
+bindrn = SUPER SHIFT, mouse:272, release, exec, grabit --release
+```
+
+while grabbed, click anywhere to drag, click the X in the top-right to close that pin.
+
+requires `zwp_relative_pointer_manager_v1` for drag (universal in modern wlroots compositors).
+
 ## ocr
 
 ```sh
@@ -187,7 +211,7 @@ presets via `filename_preset`:
 |---|---|
 | `GRABIT_DEBUG=1` | enable debug logging (same as `-d`) |
 | `GRABIT_<SERVICE>_AUTH` | per-service auth token (overrides config) |
-| `XDG_RUNTIME_DIR` | recording pid file lives here if set, else `/tmp` |
+| `XDG_RUNTIME_DIR` | recording pid file + per-pin ipc sockets live here if set, else `/tmp` |
 | `XDG_VIDEOS_DIR` | recording save dir (overridden by `save_dir` config; else `~/Videos`) |
 | `TESSDATA_PREFIX` | tesseract language-data dir |
 

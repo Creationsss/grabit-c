@@ -12,7 +12,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-int grabit_freeze_capture(struct grabit_wl_state *s, const char *path) {
+int grabit_freeze_capture(struct grabit_wl_state *s, const char *path, struct rect *out_rect) {
 	struct image *frozen = calloc(s->n_outputs, sizeof *frozen);
 	if (!frozen) return -1;
 
@@ -110,6 +110,8 @@ int grabit_freeze_capture(struct grabit_wl_state *s, const char *path) {
 	}
 
 	rc = grabit_png_write_composite(dst_w, dst_h, slices, n_slices, path);
+
+	if (rc == 0 && out_rect) *out_rect = r;
 
 cleanup:
 	free(slices);

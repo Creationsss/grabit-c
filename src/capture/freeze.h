@@ -5,7 +5,8 @@
 #define GRABIT_CAPTURE_FREEZE_H
 
 struct grabit_wl_state;
+struct rect;
 
-int grabit_freeze_capture(struct grabit_wl_state *s, const char *path);
+int grabit_freeze_capture(struct grabit_wl_state *s, const char *path, struct rect *out_rect);
 
 #endif

@@ -20,7 +20,7 @@ struct example {
 };
 
 static const struct example TOP_EXAMPLES[] = {
-	{"default_action", "upload|copy|save", "copy"},
+	{"default_action", "upload|copy|save|pin", "copy"},
 	{"notifications", "true|false", "true"},
 	{"save_captures", "true|false", "false"},
 	{"save_dir", "~/Pictures", NULL},

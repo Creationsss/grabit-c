@@ -56,7 +56,8 @@ WL_PROTOCOLS := \
 	wlr-data-control-unstable-v1 \
 	wlr-layer-shell-unstable-v1 \
 	xdg-output-unstable-v1 \
-	xdg-shell
+	xdg-shell \
+	relative-pointer-unstable-v1
 
 WL_PROTO_DIR     := $(BUILDDIR)/protocols
 WL_PROTO_HEADERS := $(addprefix $(WL_PROTO_DIR)/,$(addsuffix -client-protocol.h,$(WL_PROTOCOLS)))
@@ -108,7 +109,11 @@ GRABIT_SRCS := \
 	src/upload/upload.c \
 	src/ocr/tesseract.c \
 	src/edit/edit.c \
-	src/sound/sound.c
+	src/sound/sound.c \
+	src/pin/pin.c \
+	src/pin/pin_render.c \
+	src/pin/pin_input.c \
+	src/pin/pin_ipc.c
 
 GRABIT_VENDOR_SRCS := \
 	src/vendor/tomlc99/toml.c

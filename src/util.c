@@ -7,11 +7,13 @@
 #include "log.h"
 
 #include <errno.h>
+#include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 int grabit_xasprintf(char **out, const char *fmt, ...) {
@@ -104,4 +106,38 @@ void grabit_buf_free(struct grabit_buf *b) {
 	free(b->data);
 	b->data = NULL;
 	b->len = b->cap = 0;
+}
+
+int grabit_runtime_dir(char *out, size_t cap) {
+	const char *xdg = getenv("XDG_RUNTIME_DIR");
+	if (xdg && xdg[0] == '/') {
+		struct stat s;
+		if (stat(xdg, &s) == 0 && S_ISDIR(s.st_mode)) {
+			int n = snprintf(out, cap, "%s", xdg);
+			return (n > 0 && (size_t)n < cap) ? 0 : -1;
+		}
+	}
+	int n = snprintf(out, cap, "/tmp");
+	return (n > 0 && (size_t)n < cap) ? 0 : -1;
+}
+
+bool grabit_process_alive(pid_t pid) {
+	if (pid <= 0) return false;
+	if (kill(pid, 0) == 0) return true;
+	return errno != ESRCH;
+}
+
+bool grabit_is_grabit_process(pid_t pid) {
+	if (pid <= 0) return false;
+	char path[64];
+	snprintf(path, sizeof path, "/proc/%d/comm", (int)pid);
+	FILE *f = fopen(path, "r");
+	if (!f) return false;
+	char comm[32] = {0};
+	bool ok = fgets(comm, sizeof comm, f) != NULL;
+	fclose(f);
+	if (!ok) return false;
+	char *nl = strchr(comm, '\n');
+	if (nl) *nl = '\0';
+	return strcmp(comm, "grabit") == 0;
 }
