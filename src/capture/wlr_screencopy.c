@@ -37,17 +37,72 @@ struct sc_state {
 	int32_t stride;
 	uint32_t format;
 	bool y_invert;
+	bool swap_rb;
+
+	uint32_t advertised[16];
+	size_t n_advertised;
 
 	int status;
 };
+
+static const char *shm_format_name(uint32_t f) {
+	switch (f) {
+	case WL_SHM_FORMAT_ARGB8888:
+		return "ARGB8888";
+	case WL_SHM_FORMAT_XRGB8888:
+		return "XRGB8888";
+	case WL_SHM_FORMAT_ABGR8888:
+		return "ABGR8888";
+	case WL_SHM_FORMAT_XBGR8888:
+		return "XBGR8888";
+	case WL_SHM_FORMAT_RGBA8888:
+		return "RGBA8888";
+	case WL_SHM_FORMAT_RGBX8888:
+		return "RGBX8888";
+	case WL_SHM_FORMAT_BGRA8888:
+		return "BGRA8888";
+	case WL_SHM_FORMAT_BGRX8888:
+		return "BGRX8888";
+	case WL_SHM_FORMAT_RGB565:
+		return "RGB565";
+	default:
+		return NULL;
+	}
+}
 
 static void sc_buffer(void *data, struct zwlr_screencopy_frame_v1 *f,
 					  uint32_t format, uint32_t w, uint32_t h, uint32_t stride) {
 	(void)f;
 	struct sc_state *c = data;
 
+	const char *fname = shm_format_name(format);
+	log_debug("wlr-screencopy: buffer format=%s (0x%08x) %ux%u stride=%u",
+			  fname ? fname : "?", format, w, h, stride);
+
+	if (c->n_advertised < sizeof c->advertised / sizeof c->advertised[0]) {
+		c->advertised[c->n_advertised++] = format;
+	}
+
 	if (c->buffer) return;
-	if (format != WL_SHM_FORMAT_XRGB8888 && format != WL_SHM_FORMAT_ARGB8888) return;
+
+	bool swap_rb = false;
+	uint32_t use_format = format;
+	switch (format) {
+	case WL_SHM_FORMAT_XRGB8888:
+	case WL_SHM_FORMAT_ARGB8888:
+		break;
+	case WL_SHM_FORMAT_XBGR8888:
+		swap_rb = true;
+		use_format = WL_SHM_FORMAT_XBGR8888;
+		break;
+	case WL_SHM_FORMAT_ABGR8888:
+		swap_rb = true;
+		use_format = WL_SHM_FORMAT_ABGR8888;
+		break;
+	default:
+		return;
+	}
+	c->swap_rb = swap_rb;
 
 	if (h > 0 && stride > SIZE_MAX / (size_t)h) {
 		log_error("wlr-screencopy: %ux%u stride=%u overflows", w, h, stride);
@@ -55,7 +110,7 @@ static void sc_buffer(void *data, struct zwlr_screencopy_frame_v1 *f,
 		return;
 	}
 
-	c->format = format;
+	c->format = use_format;
 	c->width = (int32_t)w;
 	c->height = (int32_t)h;
 	c->stride = (int32_t)stride;
@@ -79,7 +134,7 @@ static void sc_buffer(void *data, struct zwlr_screencopy_frame_v1 *f,
 
 	struct wl_shm_pool *pool = wl_shm_create_pool(c->wls->shm, fd, (int32_t)size);
 	c->buffer = wl_shm_pool_create_buffer(pool, 0, (int32_t)w, (int32_t)h,
-										  (int32_t)stride, format);
+										  (int32_t)stride, use_format);
 	wl_shm_pool_destroy(pool);
 	close(fd);
 }
@@ -96,7 +151,12 @@ static void sc_linux_dmabuf(void *data, struct zwlr_screencopy_frame_v1 *f,
 static void sc_buffer_done(void *data, struct zwlr_screencopy_frame_v1 *f) {
 	struct sc_state *c = data;
 	if (!c->buffer) {
-		log_error("wlr-screencopy: compositor advertised no XRGB8888/ARGB8888 buffer format");
+		log_error("wlr-screencopy: compositor advertised no supported shm format "
+				  "(want XRGB8888/ARGB8888/XBGR8888/ABGR8888)");
+		for (size_t i = 0; i < c->n_advertised; i++) {
+			const char *n = shm_format_name(c->advertised[i]);
+			log_error("  saw: %s (0x%08x)", n ? n : "unknown", c->advertised[i]);
+		}
 		c->status = -1;
 		return;
 	}
@@ -199,18 +259,30 @@ static int run_capture(struct grabit_wl_state *s, struct sc_state *c, struct ima
 		out->width = c->width;
 		out->height = c->height;
 		out->stride = c->stride;
-		out->format = c->format;
+		if (c->swap_rb) {
+			out->format = (c->format == WL_SHM_FORMAT_XBGR8888)
+							  ? WL_SHM_FORMAT_XRGB8888
+							  : WL_SHM_FORMAT_ARGB8888;
+		} else {
+			out->format = c->format;
+		}
 		out->size = c->map_size;
 		out->bytes = malloc(c->map_size);
 		if (out->bytes) {
-			if (c->y_invert) {
-				for (int32_t row = 0; row < c->height; row++) {
-					memcpy((uint8_t *)out->bytes + (size_t)row * (size_t)c->stride,
-						   (uint8_t *)c->map + (size_t)(c->height - 1 - row) * (size_t)c->stride,
-						   (size_t)c->stride);
+			for (int32_t row = 0; row < c->height; row++) {
+				int32_t src_row = c->y_invert ? (c->height - 1 - row) : row;
+				uint8_t *src = (uint8_t *)c->map + (size_t)src_row * (size_t)c->stride;
+				uint8_t *dst = (uint8_t *)out->bytes + (size_t)row * (size_t)c->stride;
+				if (c->swap_rb) {
+					for (int32_t x = 0; x < c->width; x++) {
+						dst[x * 4 + 0] = src[x * 4 + 2];
+						dst[x * 4 + 1] = src[x * 4 + 1];
+						dst[x * 4 + 2] = src[x * 4 + 0];
+						dst[x * 4 + 3] = src[x * 4 + 3];
+					}
+				} else {
+					memcpy(dst, src, (size_t)c->stride);
 				}
-			} else {
-				memcpy(out->bytes, c->map, c->map_size);
 			}
 			rc = 0;
 		}
