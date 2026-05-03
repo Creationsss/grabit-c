@@ -206,7 +206,49 @@ static const struct zwlr_screencopy_frame_v1_listener sc_listener = {
 	.buffer_done = sc_buffer_done,
 };
 
-static int run_capture(struct grabit_wl_state *s, struct sc_state *c, struct image *out);
+static int dispatch_capture(struct grabit_wl_state *s, struct sc_state *c) {
+	while (c->status == 0) {
+		if (wl_display_dispatch(s->display) < 0) {
+			log_error("wl_display_dispatch: lost connection");
+			c->status = -1;
+			break;
+		}
+	}
+	if (c->status != 1 || !c->map) return -1;
+	return 0;
+}
+
+static uint32_t resolved_format(const struct sc_state *c) {
+	if (!c->swap_rb) return c->format;
+	return (c->format == WL_SHM_FORMAT_XBGR8888) ? WL_SHM_FORMAT_XRGB8888
+												 : WL_SHM_FORMAT_ARGB8888;
+}
+
+static void copy_capture(const struct sc_state *c, void *dst, int32_t dst_stride) {
+	for (int32_t row = 0; row < c->height; row++) {
+		int32_t src_row = c->y_invert ? (c->height - 1 - row) : row;
+		const uint8_t *src = (const uint8_t *)c->map + (size_t)src_row * (size_t)c->stride;
+		uint8_t *d = (uint8_t *)dst + (size_t)row * (size_t)dst_stride;
+		if (c->swap_rb) {
+			const uint32_t *s32 = (const uint32_t *)src;
+			uint32_t *d32 = (uint32_t *)d;
+			for (int32_t x = 0; x < c->width; x++) {
+				uint32_t p = s32[x];
+				d32[x] = (p & 0xff00ff00u) |
+						 ((p & 0x00ff0000u) >> 16) |
+						 ((p & 0x000000ffu) << 16);
+			}
+		} else {
+			memcpy(d, src, (size_t)c->width * 4);
+		}
+	}
+}
+
+static void cleanup_capture(struct sc_state *c) {
+	if (c->map) munmap(c->map, c->map_size);
+	if (c->buffer) wl_buffer_destroy(c->buffer);
+	if (c->frame) zwlr_screencopy_frame_v1_destroy(c->frame);
+}
 
 int capture_output_full(struct grabit_wl_state *s, struct grabit_output *o,
 						struct image *out) {
@@ -222,7 +264,24 @@ int capture_output_full(struct grabit_wl_state *s, struct grabit_output *o,
 		return -1;
 	}
 	zwlr_screencopy_frame_v1_add_listener(c.frame, &sc_listener, &c);
-	return run_capture(s, &c, out);
+
+	int rc = -1;
+	if (dispatch_capture(s, &c) == 0) {
+		out->width = c.width;
+		out->height = c.height;
+		out->stride = c.stride;
+		out->format = resolved_format(&c);
+		out->size = c.map_size;
+		out->bytes = malloc(c.map_size);
+		if (out->bytes) {
+			copy_capture(&c, out->bytes, c.stride);
+			rc = 0;
+		}
+	}
+
+	cleanup_capture(&c);
+	if (rc != 0) image_free(out);
+	return rc;
 }
 
 int capture_output_region(struct grabit_wl_state *s, struct grabit_output *o,
@@ -242,58 +301,56 @@ int capture_output_region(struct grabit_wl_state *s, struct grabit_output *o,
 		return -1;
 	}
 	zwlr_screencopy_frame_v1_add_listener(c.frame, &sc_listener, &c);
-	return run_capture(s, &c, out);
-}
-
-static int run_capture(struct grabit_wl_state *s, struct sc_state *c, struct image *out) {
-	while (c->status == 0) {
-		if (wl_display_dispatch(s->display) < 0) {
-			log_error("wl_display_dispatch: lost connection");
-			c->status = -1;
-			break;
-		}
-	}
 
 	int rc = -1;
-	if (c->status == 1 && c->map) {
-		out->width = c->width;
-		out->height = c->height;
-		out->stride = c->stride;
-		if (c->swap_rb) {
-			out->format = (c->format == WL_SHM_FORMAT_XBGR8888)
-							  ? WL_SHM_FORMAT_XRGB8888
-							  : WL_SHM_FORMAT_ARGB8888;
-		} else {
-			out->format = c->format;
-		}
-		out->size = c->map_size;
-		out->bytes = malloc(c->map_size);
+	if (dispatch_capture(s, &c) == 0) {
+		out->width = c.width;
+		out->height = c.height;
+		out->stride = c.stride;
+		out->format = resolved_format(&c);
+		out->size = c.map_size;
+		out->bytes = malloc(c.map_size);
 		if (out->bytes) {
-			for (int32_t row = 0; row < c->height; row++) {
-				int32_t src_row = c->y_invert ? (c->height - 1 - row) : row;
-				uint8_t *src = (uint8_t *)c->map + (size_t)src_row * (size_t)c->stride;
-				uint8_t *dst = (uint8_t *)out->bytes + (size_t)row * (size_t)c->stride;
-				if (c->swap_rb) {
-					const uint32_t *s32 = (const uint32_t *)src;
-					uint32_t *d32 = (uint32_t *)dst;
-					for (int32_t x = 0; x < c->width; x++) {
-						uint32_t p = s32[x];
-						d32[x] = (p & 0xff00ff00u) |
-								 ((p & 0x00ff0000u) >> 16) |
-								 ((p & 0x000000ffu) << 16);
-					}
-				} else {
-					memcpy(dst, src, (size_t)c->stride);
-				}
-			}
+			copy_capture(&c, out->bytes, c.stride);
 			rc = 0;
 		}
 	}
 
-	if (c->map) munmap(c->map, c->map_size);
-	if (c->buffer) wl_buffer_destroy(c->buffer);
-	if (c->frame) zwlr_screencopy_frame_v1_destroy(c->frame);
-
+	cleanup_capture(&c);
 	if (rc != 0) image_free(out);
+	return rc;
+}
+
+int capture_output_region_into(struct grabit_wl_state *s, struct grabit_output *o,
+							   int32_t x, int32_t y, int32_t w, int32_t h,
+							   bool overlay_cursor,
+							   void *dst, int32_t dst_stride, int32_t dst_h,
+							   uint32_t *out_format) {
+	if (!s || !s->screencopy_manager || !o || !dst) return -1;
+	if (w <= 0 || h <= 0 || dst_stride <= 0 || dst_h <= 0) return -1;
+	if (o->dead || !o->wl_output) return -1;
+
+	struct sc_state c = {.wls = s};
+	c.frame = zwlr_screencopy_manager_v1_capture_output_region(
+		s->screencopy_manager, overlay_cursor ? 1 : 0, o->wl_output, x, y, w, h);
+	if (!c.frame) {
+		log_error("zwlr_screencopy_manager_v1_capture_output_region: NULL");
+		return -1;
+	}
+	zwlr_screencopy_frame_v1_add_listener(c.frame, &sc_listener, &c);
+
+	int rc = -1;
+	if (dispatch_capture(s, &c) == 0) {
+		if (c.height != dst_h || c.width * 4 != dst_stride) {
+			log_error("capture: size mismatch (got %dx%d, dst stride=%d h=%d)",
+					  c.width, c.height, dst_stride, dst_h);
+		} else {
+			copy_capture(&c, dst, dst_stride);
+			if (out_format) *out_format = resolved_format(&c);
+			rc = 0;
+		}
+	}
+
+	cleanup_capture(&c);
 	return rc;
 }

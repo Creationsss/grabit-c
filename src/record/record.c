@@ -124,7 +124,7 @@ static char *build_record_path(struct config *cfg, const struct args *a) {
 	return paths_build_output(cfg, a->filename_tpl, ".mp4", PATHS_DEST_VIDEOS);
 }
 
-static int capture_loop(struct grabit_wl_state *s, const struct rec_layout *layout,
+static int capture_loop(struct grabit_wl_state *s, struct rec_layout *layout,
 						struct buf_pool *pool, int fps, bool cursor, struct ring *ring) {
 	int64_t period_ns = 1000000000 / fps;
 	int64_t start_ns = now_ns();
@@ -146,26 +146,24 @@ static int capture_loop(struct grabit_wl_state *s, const struct rec_layout *layo
 			frame_idx = (cur - start_ns) / period_ns;
 		}
 
-		void *frame_buf = NULL;
-		int32_t frame_stride = layout->dst_stride;
-		struct buf_pool *frame_pool = NULL;
+		void *frame_buf = pool_try_acquire(pool);
+		if (!frame_buf) {
+			ring_record_drop(ring);
+			frame_idx++;
+			continue;
+		}
+		struct buf_pool *frame_pool = pool;
 		int rc;
 		if (direct) {
-			rc = rec_layout_capture_direct(s, layout, cursor, &frame_buf, &frame_stride);
+			rc = rec_layout_capture_direct_into(s, layout, cursor, frame_buf,
+												layout->dst_stride, layout->dst_h);
 		} else {
-			frame_buf = pool_try_acquire(pool);
-			if (!frame_buf) {
-				ring_record_drop(ring);
-				frame_idx++;
-				continue;
-			}
 			rc = rec_layout_capture_compose(s, layout, cursor, frame_buf);
-			if (rc != 0) {
-				pool_release(pool, frame_buf);
-				frame_buf = NULL;
-			} else {
-				frame_pool = pool;
-			}
+		}
+		if (rc != 0) {
+			pool_release(pool, frame_buf);
+			frame_buf = NULL;
+			frame_pool = NULL;
 		}
 
 		if (rc != 0) {
@@ -184,7 +182,7 @@ static int capture_loop(struct grabit_wl_state *s, const struct rec_layout *layo
 			.data = frame_buf,
 			.width = layout->dst_w,
 			.height = layout->dst_h,
-			.stride = frame_stride,
+			.stride = layout->dst_stride,
 			.format = WL_SHM_FORMAT_ARGB8888,
 			.pool = frame_pool,
 		};
@@ -331,8 +329,7 @@ int record_toggle(struct config *cfg, const struct args *a) {
 			 fps, output_path);
 
 	struct buf_pool pool = {0};
-	bool pool_used = !rec_layout_is_direct(&layout);
-	if (pool_used) {
+	{
 		size_t buf_size = (size_t)layout.dst_stride * (size_t)layout.dst_h;
 		if (pool_init(&pool, POOL_CAP, buf_size) != 0) {
 			log_error("recording: could not allocate frame pool");
@@ -355,7 +352,7 @@ int record_toggle(struct config *cfg, const struct args *a) {
 	struct tray_state *tray = a->no_tray ? NULL : tray_start();
 
 	int64_t t0 = now_ns();
-	capture_loop(&s, &layout, pool_used ? &pool : NULL, fps, cursor, &ring);
+	capture_loop(&s, &layout, &pool, fps, cursor, &ring);
 	int64_t t1 = now_ns();
 
 	tray_stop(tray);
@@ -441,7 +438,7 @@ int record_toggle(struct config *cfg, const struct args *a) {
 
 	restore_signal_handlers(&prev);
 	ring_destroy(&ring);
-	if (pool_used) pool_destroy(&pool);
+	pool_destroy(&pool);
 	unlink_pid_file();
 	free(output_path);
 	rec_layout_free(&layout);

@@ -126,28 +126,35 @@ static void apply_inverse_transform(cairo_t *cr, int32_t transform,
 	}
 }
 
-int rec_layout_capture_direct(struct grabit_wl_state *s, const struct rec_layout *layout,
-							  bool cursor, void **out_buf, int32_t *out_stride) {
-	if (!s || !layout || !out_buf || !out_stride) return -1;
+int rec_layout_capture_direct_into(struct grabit_wl_state *s, const struct rec_layout *layout,
+								   bool cursor, void *dst, int32_t dst_stride, int32_t dst_h) {
+	if (!s || !layout || !dst) return -1;
 	if (layout->n != 1) return -1;
 	const struct rec_slice *sl = &layout->slices[0];
 	if (sl->out->dead) return -1;
-	struct image img = {0};
-	if (capture_output_region(s, sl->out,
-							  sl->src_x, sl->src_y, sl->src_w, sl->src_h,
-							  cursor, &img) != 0) {
-		return -1;
+	if (sl->src_w != layout->dst_w || sl->src_h != layout->dst_h) return -1;
+	return capture_output_region_into(s, sl->out,
+									  sl->src_x, sl->src_y, sl->src_w, sl->src_h,
+									  cursor, dst, dst_stride, dst_h, NULL);
+}
+
+static int ensure_slice_scratch(struct rec_layout *layout, int32_t w, int32_t h) {
+	if (layout->slice_scratch_w >= w && layout->slice_scratch_h >= h) return 0;
+	int32_t new_w = layout->slice_scratch_w > w ? layout->slice_scratch_w : w;
+	int32_t new_h = layout->slice_scratch_h > h ? layout->slice_scratch_h : h;
+	size_t new_size = (size_t)new_w * 4 * (size_t)new_h;
+	if (new_size > layout->slice_scratch_size) {
+		void *p = realloc(layout->slice_scratch, new_size);
+		if (!p) return -1;
+		layout->slice_scratch = p;
+		layout->slice_scratch_size = new_size;
 	}
-	if (img.width != layout->dst_w || img.height != layout->dst_h) {
-		image_free(&img);
-		return -1;
-	}
-	*out_buf = img.bytes;
-	*out_stride = img.stride;
+	layout->slice_scratch_w = new_w;
+	layout->slice_scratch_h = new_h;
 	return 0;
 }
 
-int rec_layout_capture_compose(struct grabit_wl_state *s, const struct rec_layout *layout,
+int rec_layout_capture_compose(struct grabit_wl_state *s, struct rec_layout *layout,
 							   bool cursor, void *dst_buf) {
 	if (!s || !layout || !dst_buf) return -1;
 
@@ -178,25 +185,27 @@ int rec_layout_capture_compose(struct grabit_wl_state *s, const struct rec_layou
 		if (sl->out->dead) continue;
 		alive++;
 
-		struct image img = {0};
-		if (capture_output_region(s, sl->out,
-								  sl->src_x, sl->src_y, sl->src_w, sl->src_h,
-								  cursor, &img) != 0) {
+		if (ensure_slice_scratch(layout, sl->src_w, sl->src_h) != 0) continue;
+		int32_t scratch_stride = sl->src_w * 4;
+		uint32_t fmt_raw;
+		if (capture_output_region_into(s, sl->out,
+									   sl->src_x, sl->src_y, sl->src_w, sl->src_h,
+									   cursor, layout->slice_scratch,
+									   scratch_stride, sl->src_h, &fmt_raw) != 0) {
 			continue;
 		}
 		captured++;
 
-		cairo_format_t fmt = image_cairo_format(img.format);
+		cairo_format_t fmt = image_cairo_format(fmt_raw);
 		cairo_surface_t *src = cairo_image_surface_create_for_data(
-			img.bytes, fmt, img.width, img.height, img.stride);
+			layout->slice_scratch, fmt, sl->src_w, sl->src_h, scratch_stride);
 		if (cairo_surface_status(src) != CAIRO_STATUS_SUCCESS) {
 			cairo_surface_destroy(src);
-			image_free(&img);
 			continue;
 		}
 
-		int32_t visible_w = transform_swaps_dims(sl->out->transform) ? img.height : img.width;
-		int32_t visible_h = transform_swaps_dims(sl->out->transform) ? img.width : img.height;
+		int32_t visible_w = transform_swaps_dims(sl->out->transform) ? sl->src_h : sl->src_w;
+		int32_t visible_h = transform_swaps_dims(sl->out->transform) ? sl->src_w : sl->src_h;
 		bool needs_scale = visible_w != sl->dst_w || visible_h != sl->dst_h;
 		double sx = visible_w > 0 ? (double)sl->dst_w / (double)visible_w : 1.0;
 		double sy = visible_h > 0 ? (double)sl->dst_h / (double)visible_h : 1.0;
@@ -206,7 +215,7 @@ int rec_layout_capture_compose(struct grabit_wl_state *s, const struct rec_layou
 		cairo_clip(cr);
 		cairo_translate(cr, sl->dst_x, sl->dst_y);
 		if (needs_scale) cairo_scale(cr, sx, sy);
-		apply_inverse_transform(cr, sl->out->transform, img.width, img.height);
+		apply_inverse_transform(cr, sl->out->transform, sl->src_w, sl->src_h);
 		cairo_set_source_surface(cr, src, 0, 0);
 		cairo_pattern_set_filter(cairo_get_source(cr),
 								 needs_scale ? CAIRO_FILTER_GOOD : CAIRO_FILTER_NEAREST);
@@ -215,7 +224,6 @@ int rec_layout_capture_compose(struct grabit_wl_state *s, const struct rec_layou
 		cairo_restore(cr);
 
 		cairo_surface_destroy(src);
-		image_free(&img);
 	}
 
 	cairo_destroy(cr);
@@ -229,5 +237,6 @@ int rec_layout_capture_compose(struct grabit_wl_state *s, const struct rec_layou
 void rec_layout_free(struct rec_layout *layout) {
 	if (!layout) return;
 	free(layout->slices);
+	free(layout->slice_scratch);
 	memset(layout, 0, sizeof *layout);
 }

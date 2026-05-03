@@ -24,15 +24,20 @@ struct rec_layout {
 	int32_t dst_w;
 	int32_t dst_h;
 	int32_t dst_stride;
+
+	void *slice_scratch;
+	size_t slice_scratch_size;
+	int32_t slice_scratch_w;
+	int32_t slice_scratch_h;
 };
 
 int rec_layout_build(struct grabit_wl_state *s, struct rect r, struct rec_layout *out);
 
 bool rec_layout_is_direct(const struct rec_layout *layout);
 
-int rec_layout_capture_direct(struct grabit_wl_state *s, const struct rec_layout *layout,
-							  bool cursor, void **out_buf, int32_t *out_stride);
-int rec_layout_capture_compose(struct grabit_wl_state *s, const struct rec_layout *layout,
+int rec_layout_capture_direct_into(struct grabit_wl_state *s, const struct rec_layout *layout,
+								   bool cursor, void *dst, int32_t dst_stride, int32_t dst_h);
+int rec_layout_capture_compose(struct grabit_wl_state *s, struct rec_layout *layout,
 							   bool cursor, void *dst_buf);
 
 void rec_layout_free(struct rec_layout *layout);

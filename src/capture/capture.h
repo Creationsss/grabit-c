@@ -32,4 +32,10 @@ int capture_output_region(struct grabit_wl_state *s, struct grabit_output *o,
 						  bool overlay_cursor,
 						  struct image *out);
 
+int capture_output_region_into(struct grabit_wl_state *s, struct grabit_output *o,
+							   int32_t x, int32_t y, int32_t w, int32_t h,
+							   bool overlay_cursor,
+							   void *dst, int32_t dst_stride, int32_t dst_h,
+							   uint32_t *out_format);
+
 #endif

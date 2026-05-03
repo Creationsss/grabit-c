@@ -64,7 +64,7 @@ int spawn_ffmpeg(const char *ffmpeg_bin, const char *preset,
 
 		const char *out_pix_fmt = (pix_fmt && pix_fmt[0]) ? pix_fmt : "yuv420p";
 
-		char *argv[32];
+		char *argv[40];
 		size_t i = 0;
 		argv[i++] = (char *)ffmpeg_bin;
 		argv[i++] = (char *)"-loglevel";
@@ -73,7 +73,7 @@ int spawn_ffmpeg(const char *ffmpeg_bin, const char *preset,
 		argv[i++] = (char *)"-f";
 		argv[i++] = (char *)"rawvideo";
 		argv[i++] = (char *)"-pix_fmt";
-		argv[i++] = (char *)"bgra";
+		argv[i++] = (char *)"bgr0";
 		argv[i++] = (char *)"-s";
 		argv[i++] = size;
 		argv[i++] = (char *)"-framerate";
@@ -81,7 +81,10 @@ int spawn_ffmpeg(const char *ffmpeg_bin, const char *preset,
 		argv[i++] = (char *)"-i";
 		argv[i++] = (char *)"-";
 		argv[i++] = (char *)"-vf";
-		argv[i++] = (char *)"crop=trunc(iw/2)*2:trunc(ih/2)*2";
+		argv[i++] = (char *)"crop=trunc(iw/2)*2:trunc(ih/2)*2,"
+							"scale=in_range=full:out_range=full:"
+							"flags=accurate_rnd+full_chroma_int+full_chroma_inp,"
+							"format=yuv420p";
 		argv[i++] = (char *)"-c:v";
 		argv[i++] = (char *)"libx264";
 		argv[i++] = (char *)"-preset";
@@ -92,6 +95,16 @@ int spawn_ffmpeg(const char *ffmpeg_bin, const char *preset,
 		}
 		argv[i++] = (char *)"-pix_fmt";
 		argv[i++] = (char *)out_pix_fmt;
+		argv[i++] = (char *)"-color_range";
+		argv[i++] = (char *)"pc";
+		argv[i++] = (char *)"-colorspace";
+		argv[i++] = (char *)"smpte170m";
+		argv[i++] = (char *)"-color_primaries";
+		argv[i++] = (char *)"bt709";
+		argv[i++] = (char *)"-color_trc";
+		argv[i++] = (char *)"iec61966-2-1";
+		argv[i++] = (char *)"-x264-params";
+		argv[i++] = (char *)"colormatrix=smpte170m";
 		argv[i++] = (char *)"-crf";
 		argv[i++] = crf_s;
 		argv[i++] = (char *)output_path;
