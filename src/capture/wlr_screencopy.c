@@ -274,11 +274,13 @@ static int run_capture(struct grabit_wl_state *s, struct sc_state *c, struct ima
 				uint8_t *src = (uint8_t *)c->map + (size_t)src_row * (size_t)c->stride;
 				uint8_t *dst = (uint8_t *)out->bytes + (size_t)row * (size_t)c->stride;
 				if (c->swap_rb) {
+					const uint32_t *s32 = (const uint32_t *)src;
+					uint32_t *d32 = (uint32_t *)dst;
 					for (int32_t x = 0; x < c->width; x++) {
-						dst[x * 4 + 0] = src[x * 4 + 2];
-						dst[x * 4 + 1] = src[x * 4 + 1];
-						dst[x * 4 + 2] = src[x * 4 + 0];
-						dst[x * 4 + 3] = src[x * 4 + 3];
+						uint32_t p = s32[x];
+						d32[x] = (p & 0xff00ff00u) |
+								 ((p & 0x00ff0000u) >> 16) |
+								 ((p & 0x000000ffu) << 16);
 					}
 				} else {
 					memcpy(dst, src, (size_t)c->stride);

@@ -317,6 +317,22 @@ fail:
 	return -1;
 }
 
+int grabit_wl_probe(struct grabit_wl_state *s) {
+	memset(s, 0, sizeof *s);
+
+	s->display = wl_display_connect(NULL);
+	if (!s->display) return -1;
+
+	s->registry = wl_display_get_registry(s->display);
+	wl_registry_add_listener(s->registry, &registry_listener_g, s);
+
+	if (wl_display_roundtrip(s->display) < 0) {
+		grabit_wl_finish(s);
+		return -1;
+	}
+	return 0;
+}
+
 void grabit_wl_finish(struct grabit_wl_state *s) {
 	if (!s) return;
 

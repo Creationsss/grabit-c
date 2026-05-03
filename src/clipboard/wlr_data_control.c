@@ -110,7 +110,7 @@ int clipboard_send_bytes(const void *bytes, size_t size,
 
 	{
 		struct grabit_wl_state probe;
-		if (grabit_wl_init(&probe) != 0) {
+		if (grabit_wl_probe(&probe) != 0) {
 			log_error("clipboard: cannot connect to wayland");
 			return -1;
 		}

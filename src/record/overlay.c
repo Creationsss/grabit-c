@@ -50,27 +50,15 @@ static int alloc_buffer(struct overlay_output *o) {
 	o->scale = o->go->scale > 0 ? o->go->scale : 1;
 	o->pixel_width = o->width * o->scale;
 	o->pixel_height = o->height * o->scale;
-	if (o->pixel_width <= 0 || o->pixel_height <= 0) return -1;
 
-	int stride = o->pixel_width * 4;
-	size_t size = (size_t)stride * (size_t)o->pixel_height;
-	int fd = grabit_shm_anon("grabit-overlay", size);
-	if (fd < 0) return -1;
-
-	o->buf_data = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-	if (o->buf_data == MAP_FAILED) {
-		log_error("overlay: mmap: %s", strerror(errno));
-		close(fd);
-		o->buf_data = NULL;
+	struct grabit_shm_buf b;
+	if (grabit_shm_argb_buf(o->st->wls->shm, "grabit-overlay",
+							o->pixel_width, o->pixel_height, &b) != 0) {
 		return -1;
 	}
-	o->buf_size = size;
-
-	struct wl_shm_pool *pool = wl_shm_create_pool(o->st->wls->shm, fd, (int32_t)size);
-	o->buffer = wl_shm_pool_create_buffer(pool, 0, o->pixel_width, o->pixel_height,
-										  stride, WL_SHM_FORMAT_ARGB8888);
-	wl_shm_pool_destroy(pool);
-	close(fd);
+	o->buffer = b.buffer;
+	o->buf_data = b.map;
+	o->buf_size = b.size;
 
 	wl_surface_set_buffer_scale(o->surface, o->scale);
 	return 0;
@@ -141,15 +129,15 @@ static void layer_surface_configure(void *data, struct zwlr_layer_surface_v1 *ls
 	o->height = (int32_t)h;
 	zwlr_layer_surface_v1_ack_configure(ls, serial);
 
-	if (o->buffer) {
-		wl_buffer_destroy(o->buffer);
-		o->buffer = NULL;
-	}
-	if (o->buf_data) {
-		munmap(o->buf_data, o->buf_size);
-		o->buf_data = NULL;
-		o->buf_size = 0;
-	}
+	struct grabit_shm_buf cfgbuf = {
+		.buffer = o->buffer,
+		.map = o->buf_data,
+		.size = o->buf_size,
+	};
+	grabit_shm_buf_destroy(&cfgbuf);
+	o->buffer = NULL;
+	o->buf_data = NULL;
+	o->buf_size = 0;
 
 	if (alloc_buffer(o) != 0) return;
 	draw_border(o);
@@ -239,8 +227,12 @@ void overlay_stop(struct overlay_state *st) {
 	if (!st) return;
 	for (size_t i = 0; i < st->n; i++) {
 		struct overlay_output *o = &st->outs[i];
-		if (o->buffer) wl_buffer_destroy(o->buffer);
-		if (o->buf_data) munmap(o->buf_data, o->buf_size);
+		struct grabit_shm_buf b = {
+			.buffer = o->buffer,
+			.map = o->buf_data,
+			.size = o->buf_size,
+		};
+		grabit_shm_buf_destroy(&b);
 		if (o->layer_surface) zwlr_layer_surface_v1_destroy(o->layer_surface);
 		if (o->surface) wl_surface_destroy(o->surface);
 	}

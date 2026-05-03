@@ -8,6 +8,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <cairo/cairo.h>
 #include <wayland-client.h>
 #include <xkbcommon/xkbcommon.h>
 
@@ -39,6 +40,10 @@ struct ro_output {
 	size_t buf_size;
 	void *buf_data;
 	struct wl_buffer *buffer;
+
+	cairo_surface_t *cairo_dst;
+	cairo_surface_t *cairo_frozen;
+	cairo_pattern_t *cairo_frozen_pat;
 
 	bool dirty;
 	struct wl_callback *frame_cb;

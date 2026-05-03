@@ -4,17 +4,11 @@
 #define _XOPEN_SOURCE 700
 #include "pin/pin_state.h"
 
-#include "log.h"
 #include "util.h"
 #include "wl.h"
 
-#include <errno.h>
 #include <math.h>
 #include <stdint.h>
-#include <stdio.h>
-#include <string.h>
-#include <sys/mman.h>
-#include <unistd.h>
 
 #include <cairo/cairo.h>
 #include <wayland-client.h>
@@ -25,48 +19,30 @@ int pin_render_alloc_buffer(struct pin_state *st) {
 	st->pixel_width = st->width * st->scale;
 	st->pixel_height = st->height * st->scale;
 
-	if (st->pixel_width <= 0 || st->pixel_height <= 0 ||
-		st->pixel_width > GRABIT_MAX_PIXEL_SIDE ||
-		st->pixel_height > GRABIT_MAX_PIXEL_SIDE) {
-		log_error("pin: buffer %dx%d out of range", st->pixel_width, st->pixel_height);
+	struct grabit_shm_buf b;
+	if (grabit_shm_argb_buf(st->wls->shm, "grabit-pin",
+							st->pixel_width, st->pixel_height, &b) != 0) {
 		return -1;
 	}
-
-	int stride = st->pixel_width * 4;
-	size_t size = (size_t)stride * (size_t)st->pixel_height;
-	int fd = grabit_shm_anon("grabit-pin", size);
-	if (fd < 0) return -1;
-
-	st->buf_data = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-	if (st->buf_data == MAP_FAILED) {
-		log_error("mmap: %s", strerror(errno));
-		close(fd);
-		st->buf_data = NULL;
-		return -1;
-	}
-	st->buf_size = size;
-	st->stride = stride;
-
-	struct wl_shm_pool *pool = wl_shm_create_pool(st->wls->shm, fd, (int32_t)size);
-	st->buffer = wl_shm_pool_create_buffer(pool, 0, st->pixel_width, st->pixel_height, stride,
-										   WL_SHM_FORMAT_ARGB8888);
-	wl_shm_pool_destroy(pool);
-	close(fd);
+	st->buffer = b.buffer;
+	st->buf_data = b.map;
+	st->buf_size = b.size;
+	st->stride = st->pixel_width * 4;
 
 	wl_surface_set_buffer_scale(st->surface, st->scale);
 	return 0;
 }
 
 void pin_render_free_buffer(struct pin_state *st) {
-	if (st->buffer) {
-		wl_buffer_destroy(st->buffer);
-		st->buffer = NULL;
-	}
-	if (st->buf_data) {
-		munmap(st->buf_data, st->buf_size);
-		st->buf_data = NULL;
-		st->buf_size = 0;
-	}
+	struct grabit_shm_buf b = {
+		.buffer = st->buffer,
+		.map = st->buf_data,
+		.size = st->buf_size,
+	};
+	grabit_shm_buf_destroy(&b);
+	st->buffer = NULL;
+	st->buf_data = NULL;
+	st->buf_size = 0;
 }
 
 static void draw_close_button(cairo_t *cr, int32_t width) {

@@ -33,34 +33,54 @@ static int output_alloc_buffer(struct ro_output *o) {
 	o->pixel_width = o->width * o->scale;
 	o->pixel_height = o->height * o->scale;
 
-	if (o->pixel_width <= 0 || o->pixel_height <= 0 ||
-		o->pixel_width > GRABIT_MAX_PIXEL_SIDE ||
-		o->pixel_height > GRABIT_MAX_PIXEL_SIDE) {
-		log_error("region: layer buffer %dx%d out of range",
-				  o->pixel_width, o->pixel_height);
+	struct grabit_shm_buf b;
+	if (grabit_shm_argb_buf(o->st->wls->shm, "grabit-region",
+							o->pixel_width, o->pixel_height, &b) != 0) {
+		return -1;
+	}
+	o->buffer = b.buffer;
+	o->buf_data = b.map;
+	o->buf_size = b.size;
+	o->stride = o->pixel_width * 4;
+
+	o->cairo_dst = cairo_image_surface_create_for_data(
+		o->buf_data, CAIRO_FORMAT_ARGB32, o->pixel_width, o->pixel_height, o->stride);
+	if (cairo_surface_status(o->cairo_dst) != CAIRO_STATUS_SUCCESS) {
+		log_error("region: cairo dst surface: %s",
+				  cairo_status_to_string(cairo_surface_status(o->cairo_dst)));
+		cairo_surface_destroy(o->cairo_dst);
+		o->cairo_dst = NULL;
 		return -1;
 	}
 
-	int stride = o->pixel_width * 4;
-	size_t size = (size_t)stride * (size_t)o->pixel_height;
-	int fd = grabit_shm_anon("grabit-region", size);
-	if (fd < 0) return -1;
-
-	o->buf_data = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-	if (o->buf_data == MAP_FAILED) {
-		log_error("mmap: %s", strerror(errno));
-		close(fd);
-		o->buf_data = NULL;
-		return -1;
+	const struct image *frozen = NULL;
+	if (o->st->frozen) {
+		const struct image *cand = &o->st->frozen[o->idx];
+		if (cand->bytes && cand->width > 0 && cand->height > 0) frozen = cand;
 	}
-	o->buf_size = size;
-	o->stride = stride;
-
-	struct wl_shm_pool *pool = wl_shm_create_pool(o->st->wls->shm, fd, (int32_t)size);
-	o->buffer = wl_shm_pool_create_buffer(pool, 0, o->pixel_width, o->pixel_height, stride,
-										  WL_SHM_FORMAT_ARGB8888);
-	wl_shm_pool_destroy(pool);
-	close(fd);
+	if (frozen) {
+		cairo_format_t fmt = (frozen->format == WL_SHM_FORMAT_ARGB8888)
+								 ? CAIRO_FORMAT_ARGB32
+								 : CAIRO_FORMAT_RGB24;
+		o->cairo_frozen = cairo_image_surface_create_for_data(
+			frozen->bytes, fmt, frozen->width, frozen->height, frozen->stride);
+		if (cairo_surface_status(o->cairo_frozen) == CAIRO_STATUS_SUCCESS) {
+			o->cairo_frozen_pat = cairo_pattern_create_for_surface(o->cairo_frozen);
+			double psx = frozen->width > 0
+							 ? (double)o->pixel_width / (double)frozen->width
+							 : 1.0;
+			double psy = frozen->height > 0
+							 ? (double)o->pixel_height / (double)frozen->height
+							 : 1.0;
+			cairo_matrix_t m;
+			cairo_matrix_init_scale(&m, 1.0 / psx, 1.0 / psy);
+			cairo_pattern_set_matrix(o->cairo_frozen_pat, &m);
+			cairo_pattern_set_filter(o->cairo_frozen_pat, CAIRO_FILTER_GOOD);
+		} else {
+			cairo_surface_destroy(o->cairo_frozen);
+			o->cairo_frozen = NULL;
+		}
+	}
 
 	wl_surface_set_buffer_scale(o->surface, o->scale);
 	return 0;
@@ -71,15 +91,27 @@ void region_render_free_buffer(struct ro_output *o) {
 		wl_callback_destroy(o->frame_cb);
 		o->frame_cb = NULL;
 	}
-	if (o->buffer) {
-		wl_buffer_destroy(o->buffer);
-		o->buffer = NULL;
+	if (o->cairo_frozen_pat) {
+		cairo_pattern_destroy(o->cairo_frozen_pat);
+		o->cairo_frozen_pat = NULL;
 	}
-	if (o->buf_data) {
-		munmap(o->buf_data, o->buf_size);
-		o->buf_data = NULL;
-		o->buf_size = 0;
+	if (o->cairo_frozen) {
+		cairo_surface_destroy(o->cairo_frozen);
+		o->cairo_frozen = NULL;
 	}
+	if (o->cairo_dst) {
+		cairo_surface_destroy(o->cairo_dst);
+		o->cairo_dst = NULL;
+	}
+	struct grabit_shm_buf b = {
+		.buffer = o->buffer,
+		.map = o->buf_data,
+		.size = o->buf_size,
+	};
+	grabit_shm_buf_destroy(&b);
+	o->buffer = NULL;
+	o->buf_data = NULL;
+	o->buf_size = 0;
 }
 
 static void output_redraw(struct ro_output *o);
@@ -103,54 +135,18 @@ static void output_request_redraw(struct ro_output *o) {
 }
 
 static void output_redraw(struct ro_output *o) {
-	if (!o->configured || !o->buf_data) return;
+	if (!o->configured || !o->buf_data || !o->cairo_dst) return;
 	o->dirty = false;
 
 	const int32_t S = o->scale;
 	const int32_t pw = o->pixel_width;
 	const int32_t ph = o->pixel_height;
 
-	cairo_surface_t *surf = cairo_image_surface_create_for_data(
-		o->buf_data, CAIRO_FORMAT_ARGB32, pw, ph, o->stride);
-	if (cairo_surface_status(surf) != CAIRO_STATUS_SUCCESS) {
-		cairo_surface_destroy(surf);
-		return;
-	}
-	cairo_t *cr = cairo_create(surf);
+	cairo_t *cr = cairo_create(o->cairo_dst);
 
-	const struct image *frozen = NULL;
-	cairo_surface_t *fz = NULL;
-	if (o->st->frozen) {
-		const struct image *cand = &o->st->frozen[o->idx];
-		if (cand->bytes && cand->width > 0 && cand->height > 0) {
-			frozen = cand;
-			cairo_format_t fmt = (frozen->format == WL_SHM_FORMAT_ARGB8888)
-									 ? CAIRO_FORMAT_ARGB32
-									 : CAIRO_FORMAT_RGB24;
-			fz = cairo_image_surface_create_for_data(
-				frozen->bytes, fmt, frozen->width, frozen->height, frozen->stride);
-			if (cairo_surface_status(fz) != CAIRO_STATUS_SUCCESS) {
-				cairo_surface_destroy(fz);
-				fz = NULL;
-				frozen = NULL;
-			}
-		}
-	}
-
-	cairo_pattern_t *fz_pat = NULL;
-	if (fz) {
-		fz_pat = cairo_pattern_create_for_surface(fz);
-		double psx = frozen->width > 0 ? (double)pw / (double)frozen->width : 1.0;
-		double psy = frozen->height > 0 ? (double)ph / (double)frozen->height : 1.0;
-		cairo_matrix_t m;
-		cairo_matrix_init_scale(&m, 1.0 / psx, 1.0 / psy);
-		cairo_pattern_set_matrix(fz_pat, &m);
-		cairo_pattern_set_filter(fz_pat, CAIRO_FILTER_GOOD);
-	}
-
-	if (fz_pat) {
+	if (o->cairo_frozen_pat) {
 		cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
-		cairo_set_source(cr, fz_pat);
+		cairo_set_source(cr, o->cairo_frozen_pat);
 		cairo_paint(cr);
 		cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
 		cairo_set_source_rgba(cr, 0.0, 0.0, 0.0, 0.45);
@@ -173,8 +169,8 @@ static void output_redraw(struct ro_output *o) {
 
 		if (r > l && b > t) {
 			cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
-			if (fz_pat) {
-				cairo_set_source(cr, fz_pat);
+			if (o->cairo_frozen_pat) {
+				cairo_set_source(cr, o->cairo_frozen_pat);
 			} else {
 				cairo_set_source_rgba(cr, 0, 0, 0, 0);
 			}
@@ -213,10 +209,7 @@ static void output_redraw(struct ro_output *o) {
 	}
 
 	cairo_destroy(cr);
-	cairo_surface_flush(surf);
-	cairo_surface_destroy(surf);
-	if (fz_pat) cairo_pattern_destroy(fz_pat);
-	if (fz) cairo_surface_destroy(fz);
+	cairo_surface_flush(o->cairo_dst);
 
 	o->frame_cb = wl_surface_frame(o->surface);
 	wl_callback_add_listener(o->frame_cb, &frame_listener_g, o);

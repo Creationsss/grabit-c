@@ -22,6 +22,18 @@ bool grabit_is_grabit_process(pid_t pid);
 
 int grabit_waitpid_intr(pid_t pid, int *status);
 
+struct wl_shm;
+struct wl_buffer;
+struct grabit_shm_buf {
+	struct wl_buffer *buffer;
+	void *map;
+	size_t size;
+};
+int grabit_shm_argb_buf(struct wl_shm *shm, const char *tag,
+						int32_t pixel_w, int32_t pixel_h,
+						struct grabit_shm_buf *out);
+void grabit_shm_buf_destroy(struct grabit_shm_buf *b);
+
 struct grabit_buf {
 	char *data;
 	size_t len;

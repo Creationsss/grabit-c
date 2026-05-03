@@ -58,6 +58,7 @@ struct grabit_wl_state {
 };
 
 int grabit_wl_init(struct grabit_wl_state *s);
+int grabit_wl_probe(struct grabit_wl_state *s);
 void grabit_wl_finish(struct grabit_wl_state *s);
 
 struct grabit_output *grabit_wl_primary_output(struct grabit_wl_state *s);
