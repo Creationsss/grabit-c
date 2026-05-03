@@ -46,12 +46,8 @@ int grabit_freeze_capture(struct grabit_wl_state *s, const char *path, struct re
 	int32_t max_scale = 1;
 	for (size_t i = 0; i < s->n_outputs; i++) {
 		struct grabit_output *o = s->outputs[i];
-		int32_t lx0 = o->x;
-		int32_t ly0 = o->y;
-		int32_t lx1 = lx0 + o->logical_width;
-		int32_t ly1 = ly0 + o->logical_height;
-		if (r.x >= lx1 || r.x + r.w <= lx0) continue;
-		if (r.y >= ly1 || r.y + r.h <= ly0) continue;
+		int32_t ix, iy, iw, ih;
+		if (!grabit_output_rect_intersect(o, &r, &ix, &iy, &iw, &ih)) continue;
 		if (o->scale > max_scale) max_scale = o->scale;
 	}
 
@@ -67,18 +63,8 @@ int grabit_freeze_capture(struct grabit_wl_state *s, const char *path, struct re
 
 	for (size_t i = 0; i < s->n_outputs; i++) {
 		struct grabit_output *o = s->outputs[i];
-		int32_t lx0 = o->x;
-		int32_t ly0 = o->y;
-		int32_t lx1 = lx0 + o->logical_width;
-		int32_t ly1 = ly0 + o->logical_height;
-
-		int32_t ix0 = r.x > lx0 ? r.x : lx0;
-		int32_t iy0 = r.y > ly0 ? r.y : ly0;
-		int32_t ix1 = (r.x + r.w) < lx1 ? (r.x + r.w) : lx1;
-		int32_t iy1 = (r.y + r.h) < ly1 ? (r.y + r.h) : ly1;
-		int32_t iw = ix1 - ix0;
-		int32_t ih = iy1 - iy0;
-		if (iw <= 0 || ih <= 0) continue;
+		int32_t ix0, iy0, iw, ih;
+		if (!grabit_output_rect_intersect(o, &r, &ix0, &iy0, &iw, &ih)) continue;
 
 		double sxr = o->logical_width > 0
 						 ? (double)frozen[i].width / (double)o->logical_width
@@ -89,8 +75,8 @@ int grabit_freeze_capture(struct grabit_wl_state *s, const char *path, struct re
 
 		struct png_slice *sl = &slices[n_slices++];
 		sl->src = &frozen[i];
-		sl->src_x = (int32_t)((ix0 - lx0) * sxr + 0.5);
-		sl->src_y = (int32_t)((iy0 - ly0) * syr + 0.5);
+		sl->src_x = (int32_t)((ix0 - o->x) * sxr + 0.5);
+		sl->src_y = (int32_t)((iy0 - o->y) * syr + 0.5);
 		sl->src_w = (int32_t)(iw * sxr + 0.5);
 		sl->src_h = (int32_t)(ih * syr + 0.5);
 		if (sl->src_x + sl->src_w > frozen[i].width)

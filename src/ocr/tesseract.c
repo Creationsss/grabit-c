@@ -16,14 +16,6 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-static int waitpid_intr(pid_t pid, int *status) {
-	while (waitpid(pid, status, 0) < 0) {
-		if (errno == EINTR) continue;
-		return -1;
-	}
-	return 0;
-}
-
 int grabit_ocr_check(const char *bin) {
 	if (!bin || !bin[0]) return -1;
 
@@ -41,7 +33,7 @@ int grabit_ocr_check(const char *bin) {
 		_exit(errno == ENOENT ? 127 : 126);
 	}
 	int status = 0;
-	if (waitpid_intr(pid, &status) != 0) return -1;
+	if (grabit_waitpid_intr(pid, &status) != 0) return -1;
 	if (!WIFEXITED(status)) {
 		log_debug("ocr: tesseract --version killed by signal %d", WTERMSIG(status));
 		return -1;
@@ -93,7 +85,7 @@ char *grabit_ocr_run(const char *bin, const char *path) {
 			grabit_buf_free(&buf);
 			close(p[0]);
 			kill(pid, SIGTERM);
-			(void)waitpid_intr(pid, NULL);
+			(void)grabit_waitpid_intr(pid, NULL);
 			log_error("ocr: oom reading tesseract output");
 			return NULL;
 		}
@@ -101,7 +93,7 @@ char *grabit_ocr_run(const char *bin, const char *path) {
 	close(p[0]);
 
 	int status = 0;
-	if (waitpid_intr(pid, &status) != 0) {
+	if (grabit_waitpid_intr(pid, &status) != 0) {
 		grabit_buf_free(&buf);
 		return NULL;
 	}

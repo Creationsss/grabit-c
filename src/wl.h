@@ -64,4 +64,9 @@ struct grabit_output *grabit_wl_primary_output(struct grabit_wl_state *s);
 struct grabit_output *grabit_wl_output_by_name(struct grabit_wl_state *s, const char *name);
 struct grabit_output *grabit_wl_output_at(struct grabit_wl_state *s, int32_t x, int32_t y);
 
+struct rect;
+bool grabit_output_rect_intersect(const struct grabit_output *o, const struct rect *r,
+								  int32_t *out_x, int32_t *out_y,
+								  int32_t *out_w, int32_t *out_h);
+
 #endif

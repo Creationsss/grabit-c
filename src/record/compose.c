@@ -27,11 +27,8 @@ int rec_layout_build(struct grabit_wl_state *s, struct rect r, struct rec_layout
 	size_t n_overlap = 0;
 	for (size_t i = 0; i < s->n_outputs; i++) {
 		struct grabit_output *o = s->outputs[i];
-		int32_t lx = r.x > o->x ? r.x : o->x;
-		int32_t ly = r.y > o->y ? r.y : o->y;
-		int32_t rx = (r.x + r.w) < (o->x + o->logical_width) ? (r.x + r.w) : (o->x + o->logical_width);
-		int32_t ry = (r.y + r.h) < (o->y + o->logical_height) ? (r.y + r.h) : (o->y + o->logical_height);
-		if (rx <= lx || ry <= ly) continue;
+		int32_t ix, iy, iw, ih;
+		if (!grabit_output_rect_intersect(o, &r, &ix, &iy, &iw, &ih)) continue;
 		n_overlap++;
 		if (o->scale > max_scale) max_scale = o->scale;
 	}
@@ -52,21 +49,17 @@ int rec_layout_build(struct grabit_wl_state *s, struct rect r, struct rec_layout
 	size_t k = 0;
 	for (size_t i = 0; i < s->n_outputs; i++) {
 		struct grabit_output *o = s->outputs[i];
-		int32_t lx = r.x > o->x ? r.x : o->x;
-		int32_t ly = r.y > o->y ? r.y : o->y;
-		int32_t rx = (r.x + r.w) < (o->x + o->logical_width) ? (r.x + r.w) : (o->x + o->logical_width);
-		int32_t ry = (r.y + r.h) < (o->y + o->logical_height) ? (r.y + r.h) : (o->y + o->logical_height);
-		int32_t iw = rx - lx, ih = ry - ly;
-		if (iw <= 0 || ih <= 0) continue;
+		int32_t ix, iy, iw, ih;
+		if (!grabit_output_rect_intersect(o, &r, &ix, &iy, &iw, &ih)) continue;
 
 		struct rec_slice *sl = &out->slices[k++];
 		sl->out = o;
-		sl->src_x = lx - o->x;
-		sl->src_y = ly - o->y;
+		sl->src_x = ix - o->x;
+		sl->src_y = iy - o->y;
 		sl->src_w = iw;
 		sl->src_h = ih;
-		sl->dst_x = (lx - r.x) * max_scale;
-		sl->dst_y = (ly - r.y) * max_scale;
+		sl->dst_x = (ix - r.x) * max_scale;
+		sl->dst_y = (iy - r.y) * max_scale;
 		sl->dst_w = iw * max_scale;
 		sl->dst_h = ih * max_scale;
 	}
@@ -158,7 +151,16 @@ int rec_layout_capture_compose(struct grabit_wl_state *s, const struct rec_layou
 							   bool cursor, void *dst_buf) {
 	if (!s || !layout || !dst_buf) return -1;
 
-	memset(dst_buf, 0, (size_t)layout->dst_stride * (size_t)layout->dst_h);
+	bool fully_tiled = false;
+	if (layout->n == 1) {
+		const struct rec_slice *sl = &layout->slices[0];
+		if (sl->dst_x == 0 && sl->dst_y == 0 &&
+			sl->dst_w == layout->dst_w && sl->dst_h == layout->dst_h) {
+			fully_tiled = true;
+		}
+	}
+	if (!fully_tiled)
+		memset(dst_buf, 0, (size_t)layout->dst_stride * (size_t)layout->dst_h);
 
 	cairo_surface_t *dst = cairo_image_surface_create_for_data(
 		dst_buf, CAIRO_FORMAT_ARGB32, layout->dst_w, layout->dst_h, layout->dst_stride);

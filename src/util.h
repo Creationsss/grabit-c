@@ -20,6 +20,8 @@ int grabit_runtime_dir(char *out, size_t cap);
 bool grabit_process_alive(pid_t pid);
 bool grabit_is_grabit_process(pid_t pid);
 
+int grabit_waitpid_intr(pid_t pid, int *status);
+
 struct grabit_buf {
 	char *data;
 	size_t len;

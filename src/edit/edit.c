@@ -22,14 +22,6 @@ static const char *basename_of(const char *p) {
 	return slash ? slash + 1 : p;
 }
 
-static int waitpid_intr(pid_t pid, int *status) {
-	while (waitpid(pid, status, 0) < 0) {
-		if (errno == EINTR) continue;
-		return -1;
-	}
-	return 0;
-}
-
 static int run_satty(const char *bin, const char *path) {
 	char tmp[256];
 	snprintf(tmp, sizeof tmp, "/tmp/grabit_satty_%d_%lld.png",
@@ -48,7 +40,7 @@ static int run_satty(const char *bin, const char *path) {
 		_exit(127);
 	}
 	int status = 0;
-	if (waitpid_intr(pid, &status) != 0) return -1;
+	if (grabit_waitpid_intr(pid, &status) != 0) return -1;
 	if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
 		unlink(tmp);
 		return -1;
@@ -70,7 +62,7 @@ static int run_simple(const char *bin, const char *path) {
 		_exit(127);
 	}
 	int status = 0;
-	if (waitpid_intr(pid, &status) != 0) return -1;
+	if (grabit_waitpid_intr(pid, &status) != 0) return -1;
 	if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) return -1;
 	return 0;
 }
@@ -80,9 +72,20 @@ static int dispatch(const char *bin, const char *path) {
 	return run_simple(bin, path);
 }
 
-static void notify_edit_unavailable(const char *body) {
+static void notify_setup_needed(const char *body) {
 	notify_send(&(struct notify_opts){
 		.summary = "grabit: setup needed",
+		.body = body,
+		.force = true,
+	});
+}
+
+static void notify_edit_failed(const char *bin) {
+	char body[160];
+	snprintf(body, sizeof body, "%s exited unsuccessfully; continuing with unedited file",
+			 basename_of(bin));
+	notify_send(&(struct notify_opts){
+		.summary = "grabit: edit failed",
 		.body = body,
 		.force = true,
 	});
@@ -94,17 +97,23 @@ int grabit_edit_file(struct config *cfg, const char *path) {
 		if (!grabit_in_path(editor)) {
 			log_error("edit: configured editor `%s` not found in $PATH", editor);
 			log_error("  unset with: grabit unset editor");
-			notify_edit_unavailable("editor not found; see terminal for details");
+			notify_setup_needed("editor not found; see terminal for details");
 			return -1;
 		}
-		return dispatch(editor, path);
+		int rc = dispatch(editor, path);
+		if (rc != 0) notify_edit_failed(editor);
+		return rc;
 	}
 	static const char *const CANDIDATES[] = {"satty", "swappy", "gimp", "krita", "kolourpaint", NULL};
 	for (size_t i = 0; CANDIDATES[i]; i++) {
-		if (grabit_in_path(CANDIDATES[i])) return dispatch(CANDIDATES[i], path);
+		if (grabit_in_path(CANDIDATES[i])) {
+			int rc = dispatch(CANDIDATES[i], path);
+			if (rc != 0) notify_edit_failed(CANDIDATES[i]);
+			return rc;
+		}
 	}
 	log_error("edit: no editor found in $PATH (tried: satty, swappy, gimp, krita, kolourpaint)");
 	log_error("  install one or set: grabit set editor <bin>");
-	notify_edit_unavailable("no editor installed; see terminal for details");
+	notify_setup_needed("no editor installed; see terminal for details");
 	return -1;
 }

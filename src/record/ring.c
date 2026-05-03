@@ -144,27 +144,41 @@ void ring_record_drop(struct ring *r) {
 	pthread_mutex_unlock(&r->mu);
 }
 
+static int write_all(int fd, const uint8_t *p, size_t n) {
+	while (n > 0) {
+		ssize_t w = write(fd, p, n);
+		if (w < 0) {
+			if (errno == EINTR) continue;
+			return -1;
+		}
+		p += w;
+		n -= (size_t)w;
+	}
+	return 0;
+}
+
 void *encoder_thread(void *arg) {
 	struct enc_state *e = arg;
 	struct frame f;
 	while (ring_pop(e->ring, &f) == 0) {
 		if (!e->write_failed && e->write_fd >= 0 && f.data) {
 			size_t row_bytes = (size_t)f.width * 4;
-			const uint8_t *base = f.data;
-			for (int row = 0; row < f.height && !e->write_failed; row++) {
-				const uint8_t *rp = base + (size_t)row * (size_t)f.stride;
-				size_t left = row_bytes;
-				while (left > 0) {
-					ssize_t n = write(e->write_fd, rp, left);
-					if (n < 0) {
-						if (errno == EINTR) continue;
+			if ((size_t)f.stride == row_bytes) {
+				if (write_all(e->write_fd, f.data, row_bytes * (size_t)f.height) < 0) {
+					log_error("recording: write to ffmpeg: %s", strerror(errno));
+					e->write_failed = true;
+					if (e->stop) *e->stop = 1;
+				}
+			} else {
+				const uint8_t *base = f.data;
+				for (int row = 0; row < f.height && !e->write_failed; row++) {
+					if (write_all(e->write_fd, base + (size_t)row * (size_t)f.stride,
+								  row_bytes) < 0) {
 						log_error("recording: write to ffmpeg: %s", strerror(errno));
 						e->write_failed = true;
 						if (e->stop) *e->stop = 1;
 						break;
 					}
-					rp += n;
-					left -= (size_t)n;
 				}
 			}
 		}

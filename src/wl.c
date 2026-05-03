@@ -6,6 +6,7 @@
 #include "wl.h"
 
 #include "log.h"
+#include "region/region.h"
 
 #include <stdbool.h>
 #include <stdlib.h>
@@ -272,6 +273,10 @@ int grabit_wl_init(struct grabit_wl_state *s) {
 		log_error("compositor doesn't advertise wl_shm");
 		goto fail;
 	}
+	if (!s->compositor) {
+		log_error("compositor doesn't advertise wl_compositor");
+		goto fail;
+	}
 	if (!s->screencopy_manager) {
 		log_error("compositor doesn't advertise zwlr_screencopy_manager_v1; "
 				  "grabit only supports wlroots-based compositors");
@@ -364,4 +369,25 @@ struct grabit_output *grabit_wl_output_at(struct grabit_wl_state *s, int32_t x, 
 			return o;
 	}
 	return NULL;
+}
+
+bool grabit_output_rect_intersect(const struct grabit_output *o, const struct rect *r,
+								  int32_t *out_x, int32_t *out_y,
+								  int32_t *out_w, int32_t *out_h) {
+	int32_t lx = r->x > o->x ? r->x : o->x;
+	int32_t ly = r->y > o->y ? r->y : o->y;
+	int32_t rx = (r->x + r->w) < (o->x + o->logical_width)
+					 ? (r->x + r->w)
+					 : (o->x + o->logical_width);
+	int32_t ry = (r->y + r->h) < (o->y + o->logical_height)
+					 ? (r->y + r->h)
+					 : (o->y + o->logical_height);
+	int32_t iw = rx - lx;
+	int32_t ih = ry - ly;
+	if (iw <= 0 || ih <= 0) return false;
+	*out_x = lx;
+	*out_y = ly;
+	*out_w = iw;
+	*out_h = ih;
+	return true;
 }

@@ -14,6 +14,7 @@
 #include <string.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 int grabit_xasprintf(char **out, const char *fmt, ...) {
@@ -125,6 +126,14 @@ bool grabit_process_alive(pid_t pid) {
 	if (pid <= 0) return false;
 	if (kill(pid, 0) == 0) return true;
 	return errno != ESRCH;
+}
+
+int grabit_waitpid_intr(pid_t pid, int *status) {
+	while (waitpid(pid, status, 0) < 0) {
+		if (errno == EINTR) continue;
+		return -1;
+	}
+	return 0;
 }
 
 bool grabit_is_grabit_process(pid_t pid) {
