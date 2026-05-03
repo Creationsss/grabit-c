@@ -85,6 +85,7 @@ void notify_send(const struct notify_opts *o) {
 			if (strstr(name, "ServiceUnknown") || strstr(name, "NameHasNoOwner")) {
 				log_warn("notifications unavailable: no notification daemon running "
 						 "(install dunst, mako, or similar)");
+				log_warn("  consider enabling shutter sound: grabit set sound.enabled true");
 			} else {
 				log_warn("notify: %s: %s", name[0] ? name : "(no name)",
 						 err.message ? err.message : strerror(-rc));

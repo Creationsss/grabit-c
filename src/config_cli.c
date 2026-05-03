@@ -185,11 +185,24 @@ static bool print_example(const char *example, const char *def) {
 	return starred;
 }
 
+static void print_key_with_default(const char *key, const char *def) {
+	if (def)
+		printf("  %-28s default: %s\n", key, def);
+	else
+		printf("  %s\n", key);
+}
+
+static const char *find_default(const char *key) {
+	const char *ex = NULL, *def = NULL;
+	if (example_for_key(key, &ex, &def) == 0) return def;
+	return NULL;
+}
+
 static void print_set_help(void) {
 	puts("keys (run `grabit set <key>` for example values):");
 	puts("");
 	for (size_t i = 0; i < TOP_EXAMPLES_N; i++) {
-		printf("  %s\n", TOP_EXAMPLES[i].key);
+		print_key_with_default(TOP_EXAMPLES[i].key, TOP_EXAMPLES[i].def);
 	}
 	puts("");
 	puts("  services.<svc>.auth     (svc: zipline|nest|fakecrime|ez|guns|pixelvault)");
@@ -201,20 +214,32 @@ static void print_set_help(void) {
 		printf("    %s\n", gcfg_zl_headers[i].name);
 	}
 	puts("");
-	puts("  recording.fps");
-	puts("  recording.crf");
-	puts("  recording.preset");
-	puts("  recording.tune");
-	puts("  recording.pix_fmt");
-	puts("  recording.max_size_mb");
-	puts("  recording.cursor");
-	puts("  recording.ffmpeg");
+	static const char *const RECORDING_KEYS[] = {
+		"recording.fps",
+		"recording.crf",
+		"recording.preset",
+		"recording.tune",
+		"recording.pix_fmt",
+		"recording.max_size_mb",
+		"recording.cursor",
+		"recording.ffmpeg",
+		NULL,
+	};
+	for (size_t i = 0; RECORDING_KEYS[i]; i++) {
+		print_key_with_default(RECORDING_KEYS[i], find_default(RECORDING_KEYS[i]));
+	}
 	puts("");
-	puts("  sound.enabled");
-	puts("  sound.player");
-	puts("  sound.file");
+	static const char *const SOUND_KEYS[] = {
+		"sound.enabled",
+		"sound.player",
+		"sound.file",
+		NULL,
+	};
+	for (size_t i = 0; SOUND_KEYS[i]; i++) {
+		print_key_with_default(SOUND_KEYS[i], find_default(SOUND_KEYS[i]));
+	}
 	puts("");
-	puts("  ocr.tesseract");
+	print_key_with_default("ocr.tesseract", find_default("ocr.tesseract"));
 }
 
 int cmd_set(int argc, char **argv) {

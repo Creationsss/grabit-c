@@ -57,7 +57,7 @@ int upload_preflight(struct config *cfg, const struct args *a, const char **serv
 		log_error("no service: pass --<service> or `grabit set service <name>`");
 		notify_send(&(struct notify_opts){
 			.summary = "grabit: setup needed",
-			.body = "no upload service set; see terminal for details",
+			.body = "run: grabit set service zipline (or nest, fakecrime, ez, guns, pixelvault)",
 			.force = true,
 		});
 		return -1;
@@ -66,7 +66,7 @@ int upload_preflight(struct config *cfg, const struct args *a, const char **serv
 		log_error("unknown service: %s", service);
 		notify_send(&(struct notify_opts){
 			.summary = "grabit: setup needed",
-			.body = "unknown service; see terminal for details",
+			.body = "valid services: zipline, nest, fakecrime, ez, guns, pixelvault",
 			.force = true,
 		});
 		return -1;
@@ -86,8 +86,8 @@ int upload_preflight(struct config *cfg, const struct args *a, const char **serv
 		log_error("    export %s=\"$(pass show grabit/%s)\"", env_key, service);
 		log_error("  or fallback (plaintext in config 0600):");
 		log_error("    grabit set %s <token>", cfg_key);
-		char body[128];
-		snprintf(body, sizeof body, "%s auth token not set; see terminal for details", service);
+		char body[160];
+		snprintf(body, sizeof body, "run: grabit set services.%s.auth <token>", service);
 		notify_send(&(struct notify_opts){
 			.summary = "grabit: setup needed",
 			.body = body,
@@ -103,7 +103,7 @@ int upload_preflight(struct config *cfg, const struct args *a, const char **serv
 			log_error("    grabit set services.zipline.domain https://<host>/api/upload");
 			notify_send(&(struct notify_opts){
 				.summary = "grabit: setup needed",
-				.body = "zipline domain not set; see terminal for details",
+				.body = "run: grabit set services.zipline.domain https://<host>/api/upload",
 				.force = true,
 			});
 			return -1;
