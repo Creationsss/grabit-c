@@ -306,8 +306,7 @@ int cmd_unset(int argc, char **argv) {
 		break;
 	}
 	if (!found) {
-		log_error("not set: %s", argv[0]);
-		rc = 1;
+		log_info("%s was not set", argv[0]);
 	} else if (config_save(&c) != 0) {
 		log_error("could not save config");
 		rc = 1;

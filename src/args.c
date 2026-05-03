@@ -156,5 +156,17 @@ int args_parse(int argc, char **argv, struct args *out) {
 		return -1;
 	}
 
+	if (out->edit) {
+		bool edit_applies = out->action == ACTION_UPLOAD ||
+							out->action == ACTION_COPY ||
+							out->action == ACTION_OUTPUT ||
+							out->action == ACTION_PIN ||
+							out->action == ACTION_NONE;
+		if (!edit_applies) log_warn("--edit is ignored for this action");
+	}
+	if (out->no_tray && out->action != ACTION_RECORD && out->action != ACTION_NONE) {
+		log_warn("--no-tray only applies to --record");
+	}
+
 	return 0;
 }

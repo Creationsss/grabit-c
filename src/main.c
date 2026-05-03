@@ -3,7 +3,6 @@
 
 #define _XOPEN_SOURCE 700
 
-#include <ctype.h>
 #include <signal.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -101,14 +100,27 @@ static int print_help(void) {
 		"  get [<key>]       Print one config key, or every set key\n"
 		"  unset <key>       Remove a config key\n"
 		"\n"
+		"Filename templates (--filename or `filename` config key):\n"
+		"  %Y %m %d %H %M %S strftime fields\n"
+		"  %s                unix timestamp\n"
+		"  %r[N]             random alphanumeric, N chars (default 12)\n"
+		"  %u                uuid v4\n"
+		"  %w                active window class (hyprland)\n"
+		"  %t                active window title (hyprland)\n"
+		"  %o                output name where the capture happened\n"
+		"\n"
+		"With no action and no `default_action` set, grabit prints this help.\n"
+		"Set one with: grabit set default_action upload|copy|save|pin\n"
+		"\n"
 		"Misc:\n"
 		"  --version         Print version and exit\n"
-		"  --help            Print this help and exit\n"
+		"  -h, --help        Print this help and exit\n"
 		"\n"
 		"Environment:\n"
 		"  GRABIT_DEBUG=1            Same as -d\n"
-		"  GRABIT_<SERVICE>_AUTH     Auth token (overrides config). Recommended:\n"
-		"                            export GRABIT_ZIPLINE_AUTH=\"$(pass show grabit/zipline)\"\n",
+		"  GRABIT_<SERVICE>_AUTH     Auth token (overrides config). Service is one of\n"
+		"                            ZIPLINE, NEST, FAKECRIME, EZ, GUNS, PIXELVAULT.\n"
+		"                            Example: export GRABIT_ZIPLINE_AUTH=\"$(pass show grabit/zipline)\"\n",
 		stdout);
 	return 0;
 }
@@ -134,7 +146,14 @@ static char *capture_to_file(const struct args *a, struct config *cfg,
 							 struct rect *out_rect) {
 	*is_temp = false;
 	char *path = build_capture_path(a, cfg, eff, is_temp);
-	if (!path) return NULL;
+	if (!path) {
+		notify_send(&(struct notify_opts){
+			.summary = "grabit: capture failed",
+			.body = "could not build output path; see terminal for details",
+			.force = true,
+		});
+		return NULL;
+	}
 
 	if (*is_temp) register_tmpfile(path);
 
@@ -157,6 +176,11 @@ static char *capture_to_file(const struct args *a, struct config *cfg,
 		unlink(path);
 		clear_tmpfile();
 		free(path);
+		notify_send(&(struct notify_opts){
+			.summary = "grabit: capture failed",
+			.body = "selection cancelled or did not intersect any output",
+			.force = true,
+		});
 		return NULL;
 	}
 	log_debug("captured to %s", path);
@@ -182,7 +206,18 @@ static int run_upload(struct config *cfg, const struct args *a) {
 	}
 
 	if (a->edit && grabit_edit_file(cfg, path) != 0) {
-		log_warn("edit failed; continuing with unedited file");
+		log_info("edit cancelled; aborting");
+		notify_send(&(struct notify_opts){
+			.summary = "grabit: edit cancelled",
+			.body = "action aborted",
+			.force = true,
+		});
+		if (is_temp) {
+			unlink(path);
+			clear_tmpfile();
+		}
+		free(path);
+		return 1;
 	}
 
 	struct upload_result r = {0};
@@ -205,8 +240,10 @@ static int run_upload(struct config *cfg, const struct args *a) {
 		char body_short[1024];
 		const char *body = r.body;
 		if (body && strlen(body) >= sizeof body_short) {
-			memcpy(body_short, body, sizeof body_short - 4);
-			memcpy(body_short + sizeof body_short - 4, "...", 4);
+			static const char trail[] = "… (full response in terminal)";
+			size_t keep = sizeof body_short - sizeof trail;
+			memcpy(body_short, body, keep);
+			memcpy(body_short + keep, trail, sizeof trail);
 			body = body_short;
 		}
 		struct notify_opts opts = {
@@ -241,7 +278,18 @@ static int run_copy(struct config *cfg, const struct args *a) {
 	}
 
 	if (a->edit && grabit_edit_file(cfg, path) != 0) {
-		log_warn("edit failed; continuing with unedited file");
+		log_info("edit cancelled; aborting");
+		notify_send(&(struct notify_opts){
+			.summary = "grabit: edit cancelled",
+			.body = "action aborted",
+			.force = true,
+		});
+		if (is_temp) {
+			unlink(path);
+			clear_tmpfile();
+		}
+		free(path);
+		return 1;
 	}
 
 	int rc = clipboard_set_image_file(path);
@@ -279,22 +327,46 @@ static int run_output(struct config *cfg, const struct args *a) {
 	if (!path) return 1;
 
 	if (a->edit && grabit_edit_file(cfg, path) != 0) {
-		log_warn("edit failed; continuing with unedited file");
+		log_info("edit cancelled; aborting");
+		notify_send(&(struct notify_opts){
+			.summary = "grabit: edit cancelled",
+			.body = "action aborted",
+			.force = true,
+		});
+		if (is_temp) {
+			unlink(path);
+			clear_tmpfile();
+		}
+		free(path);
+		return 1;
 	}
 
 	puts(path);
-	notify_send(&(struct notify_opts){
-		.summary = "Saved",
-		.body = path,
-		.icon_path = path,
-	});
-	grabit_sound_play(cfg);
+	if (isatty(STDOUT_FILENO)) {
+		notify_send(&(struct notify_opts){
+			.summary = "Saved",
+			.body = path,
+			.icon_path = path,
+		});
+		grabit_sound_play(cfg);
+	}
 	free(path);
 	return 0;
 }
 
 static int run_ocr(struct config *cfg, const struct args *a) {
 	const char *bin = config_get(cfg, "ocr.tesseract");
+	if (bin && bin[0] && grabit_ocr_check(bin) != 0) {
+		log_error("ocr: configured ocr.tesseract `%s` not found; "
+				  "unset with: grabit unset ocr.tesseract",
+				  bin);
+		notify_send(&(struct notify_opts){
+			.summary = "grabit: setup needed",
+			.body = "configured tesseract not found; see terminal for details",
+			.force = true,
+		});
+		return 1;
+	}
 	if (!bin || !bin[0]) {
 		static const char *const CANDIDATES[] = {"tesseract", "tesseract-ocr", NULL};
 		for (size_t i = 0; CANDIDATES[i]; i++) {
@@ -303,8 +375,6 @@ static int run_ocr(struct config *cfg, const struct args *a) {
 				break;
 			}
 		}
-	} else if (grabit_ocr_check(bin) != 0) {
-		bin = NULL;
 	}
 	if (!bin) {
 		log_error("ocr: tesseract not found in $PATH (install tesseract)");
@@ -340,7 +410,7 @@ static int run_ocr(struct config *cfg, const struct args *a) {
 	if (!text) {
 		notify_send(&(struct notify_opts){
 			.summary = "OCR failed",
-			.body = "see terminal for details",
+			.body = "tesseract returned no output; check that eng.traineddata is installed",
 			.force = true,
 		});
 		return 1;
@@ -410,7 +480,18 @@ static int run_pin(struct config *cfg, const struct args *a) {
 	}
 
 	if (a->edit && grabit_edit_file(cfg, path) != 0) {
-		log_warn("edit failed; continuing with unedited file");
+		log_info("edit cancelled; aborting");
+		notify_send(&(struct notify_opts){
+			.summary = "grabit: edit cancelled",
+			.body = "action aborted",
+			.force = true,
+		});
+		if (is_temp) {
+			unlink(path);
+			clear_tmpfile();
+		}
+		free(path);
+		return 1;
 	}
 
 	int rc = pin_spawn(cfg, path, have_rect ? &r : NULL);
@@ -475,6 +556,11 @@ static int run(const struct args *a) {
 	default:
 		log_error("no action specified; try -u, -c, -o, --pin, --record, or --tesseract");
 		log_info("(or set a default with: grabit set default_action upload)");
+		notify_send(&(struct notify_opts){
+			.summary = "grabit: setup needed",
+			.body = "no action; run `grabit set default_action upload|copy|save|pin`",
+			.force = true,
+		});
 		rc = 1;
 		break;
 	}

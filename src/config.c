@@ -617,7 +617,3 @@ int config_set(struct config *c, const char *key, const char *value) {
 	}
 	return config_save(c);
 }
-
-bool config_needs_setup(struct config *c) {
-	return config_get(c, "default_action") == NULL;
-}

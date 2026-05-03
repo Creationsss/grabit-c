@@ -219,6 +219,11 @@ int record_toggle(struct config *cfg, const struct args *a) {
 	if (!frozen) {
 		grabit_wl_finish(&s);
 		log_error("oom");
+		notify_send(&(struct notify_opts){
+			.summary = "Recording failed",
+			.body = "out of memory",
+			.force = true,
+		});
 		return 1;
 	}
 	for (size_t i = 0; i < s.n_outputs; i++) {
@@ -254,6 +259,11 @@ int record_toggle(struct config *cfg, const struct args *a) {
 	if (rec_layout_build(&s, r, &layout) != 0) {
 		log_error("region does not overlap any output");
 		grabit_wl_finish(&s);
+		notify_send(&(struct notify_opts){
+			.summary = "Recording failed",
+			.body = "selected region did not intersect any output",
+			.force = true,
+		});
 		return 1;
 	}
 
@@ -262,6 +272,11 @@ int record_toggle(struct config *cfg, const struct args *a) {
 		log_error("recording: could not build output path");
 		rec_layout_free(&layout);
 		grabit_wl_finish(&s);
+		notify_send(&(struct notify_opts){
+			.summary = "Recording failed",
+			.body = "could not build output path; see terminal for details",
+			.force = true,
+		});
 		return 1;
 	}
 
@@ -274,11 +289,19 @@ int record_toggle(struct config *cfg, const struct args *a) {
 	const char *pix_fmt = read_pix_fmt(cfg);
 
 	if (write_pid_file_excl(getpid()) != 0) {
+		const char *body;
 		if (errno == EEXIST) {
 			log_error("another grabit recording started concurrently; aborting this one");
+			body = "another recording is already starting";
 		} else {
 			log_error("could not write recording pidfile: %s", strerror(errno));
+			body = "could not write pid file; see terminal for details";
 		}
+		notify_send(&(struct notify_opts){
+			.summary = "Recording failed",
+			.body = body,
+			.force = true,
+		});
 		free(output_path);
 		rec_layout_free(&layout);
 		grabit_wl_finish(&s);
@@ -291,6 +314,11 @@ int record_toggle(struct config *cfg, const struct args *a) {
 					 layout.dst_w, layout.dst_h, fps, crf,
 					 output_path, &ffmpeg_pid, &ffmpeg_fd) != 0) {
 		unlink_pid_file();
+		notify_send(&(struct notify_opts){
+			.summary = "Recording failed",
+			.body = "ffmpeg failed to start; install ffmpeg or set recording.ffmpeg",
+			.force = true,
+		});
 		free(output_path);
 		rec_layout_free(&layout);
 		grabit_wl_finish(&s);
@@ -421,7 +449,7 @@ int record_toggle(struct config *cfg, const struct args *a) {
 				log_error("recording upload failed; file kept at %s", output_path);
 				notify_send(&(struct notify_opts){
 					.summary = "Upload failed",
-					.body = "recording kept on disk; see terminal",
+					.body = output_path,
 					.force = true,
 				});
 			}
@@ -431,7 +459,7 @@ int record_toggle(struct config *cfg, const struct args *a) {
 		log_error("recording failed; output may be incomplete: %s", output_path);
 		notify_send(&(struct notify_opts){
 			.summary = "Recording failed",
-			.body = "see terminal for details",
+			.body = output_path,
 			.force = true,
 		});
 	}
