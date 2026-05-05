@@ -41,6 +41,12 @@ int grabit_xasprintf(char **out, const char *fmt, ...) {
 	return 0;
 }
 
+const char *grabit_basename(const char *path) {
+	if (!path) return "";
+	const char *slash = strrchr(path, '/');
+	return slash ? slash + 1 : path;
+}
+
 bool grabit_in_path(const char *bin) {
 	if (!bin || !bin[0]) return false;
 	if (strchr(bin, '/')) return access(bin, X_OK) == 0;

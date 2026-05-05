@@ -25,6 +25,7 @@
 #include "region/region.h"
 #include "sound/sound.h"
 #include "upload/upload.h"
+#include "util.h"
 #include "wl.h"
 
 #ifndef GRABIT_VERSION
@@ -275,7 +276,7 @@ static int run_upload(struct config *cfg, const struct args *a) {
 		const char *summary = mime_is_video(m) ? "Video uploaded" : "Uploaded";
 		struct notify_opts opts = {
 			.summary = summary,
-			.body = r.url,
+			.body = "link copied to clipboard",
 			.icon_path = mime_is_image(m) ? path : NULL,
 		};
 		notify_send(&opts);
@@ -328,14 +329,14 @@ static int run_copy(struct config *cfg, const struct args *a) {
 	if (rc == 0) {
 		notify_send(&(struct notify_opts){
 			.summary = "Copied to clipboard",
-			.body = path,
+			.body = grabit_basename(path),
 			.icon_path = path,
 		});
 		grabit_sound_play(cfg);
 	} else {
 		notify_send(&(struct notify_opts){
 			.summary = "Clipboard write failed",
-			.body = path,
+			.body = grabit_basename(path),
 			.force = true,
 		});
 	}
@@ -361,7 +362,7 @@ static int run_output(struct config *cfg, const struct args *a) {
 	if (isatty(STDOUT_FILENO)) {
 		notify_send(&(struct notify_opts){
 			.summary = "Saved",
-			.body = path,
+			.body = grabit_basename(path),
 			.icon_path = path,
 		});
 		grabit_sound_play(cfg);

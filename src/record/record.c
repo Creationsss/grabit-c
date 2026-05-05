@@ -19,6 +19,7 @@
 #include "region/region.h"
 #include "tray/tray.h"
 #include "upload/upload.h"
+#include "util.h"
 #include "wl.h"
 
 #include <errno.h>
@@ -408,7 +409,7 @@ int record_toggle(struct config *cfg, const struct args *a) {
 					 (long long)st.st_size, max_mb);
 			notify_send(&(struct notify_opts){
 				.summary = "Recording compressing",
-				.body = output_path,
+				.body = grabit_basename(output_path),
 				.force = true,
 			});
 			if (compress_to_target_size(ffmpeg_bin, output_path, max_mb, secs, &g_stop) == 0) {
@@ -424,7 +425,7 @@ int record_toggle(struct config *cfg, const struct args *a) {
 		if (!upload_service) {
 			notify_send(&(struct notify_opts){
 				.summary = "Recording saved",
-				.body = output_path,
+				.body = grabit_basename(output_path),
 				.force = true,
 			});
 		}
@@ -442,14 +443,14 @@ int record_toggle(struct config *cfg, const struct args *a) {
 				log_info("%s", ur.url);
 				notify_send(&(struct notify_opts){
 					.summary = "Recording uploaded",
-					.body = ur.url,
+					.body = "link copied to clipboard",
 					.force = true,
 				});
 			} else {
 				log_error("recording upload failed; file kept at %s", output_path);
 				notify_send(&(struct notify_opts){
 					.summary = "Upload failed",
-					.body = output_path,
+					.body = grabit_basename(output_path),
 					.force = true,
 				});
 			}
@@ -459,7 +460,7 @@ int record_toggle(struct config *cfg, const struct args *a) {
 		log_error("recording failed; output may be incomplete: %s", output_path);
 		notify_send(&(struct notify_opts){
 			.summary = "Recording failed",
-			.body = output_path,
+			.body = grabit_basename(output_path),
 			.force = true,
 		});
 	}
