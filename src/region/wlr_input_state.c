@@ -217,18 +217,6 @@ bool region_inside_selection(const struct ro_state *st, int32_t x, int32_t y) {
 		   x < st->sel_x + st->sel_w && y < st->sel_y + st->sel_h;
 }
 
-int32_t region_clamp_x(const struct ro_state *st, int32_t x) {
-	if (x < st->sel_x) return st->sel_x;
-	if (x > st->sel_x + st->sel_w) return st->sel_x + st->sel_w;
-	return x;
-}
-
-int32_t region_clamp_y(const struct ro_state *st, int32_t y) {
-	if (y < st->sel_y) return st->sel_y;
-	if (y > st->sel_y + st->sel_h) return st->sel_y + st->sel_h;
-	return y;
-}
-
 void region_pen_append(struct ro_state *st, int32_t x, int32_t y) {
 	if (st->pen_n >= PEN_POINTS_MAX) return;
 	if (st->pen_n == st->pen_cap) {
@@ -261,10 +249,10 @@ void region_commit_drawing(struct ro_state *st) {
 		st->pen_points = NULL;
 		st->pen_n = st->pen_cap = 0;
 	} else {
-		int32_t x0 = region_clamp_x(st, st->draw_x0);
-		int32_t y0 = region_clamp_y(st, st->draw_y0);
-		int32_t x1 = region_clamp_x(st, st->cursor_x);
-		int32_t y1 = region_clamp_y(st, st->cursor_y);
+		int32_t x0 = st->draw_x0;
+		int32_t y0 = st->draw_y0;
+		int32_t x1 = st->cursor_x;
+		int32_t y1 = st->cursor_y;
 		if (st->shift_held) {
 			if (st->current_tool == TOOL_RECT ||
 				st->current_tool == TOOL_ELLIPSE ||
