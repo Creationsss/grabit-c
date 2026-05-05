@@ -534,9 +534,24 @@ int config_set(struct config *c, const char *key, const char *value) {
 		log_error("service must be one of zipline|nest|fakecrime|ez|guns|pixelvault");
 		return -1;
 	}
-	if (strcmp(key, "edit.color") == 0 && !in_list(value, VALS_edit_color)) {
-		log_error("edit.color must be one of red|yellow|green|blue|black|white");
-		return -1;
+	if (strcmp(key, "edit.color") == 0) {
+		const char *p = (*value == '#') ? value + 1 : value;
+		size_t len = strlen(p);
+		bool valid_hex = (len == 6 || len == 3);
+		if (valid_hex) {
+			for (size_t i = 0; i < len; i++) {
+				char hc = p[i];
+				if (!((hc >= '0' && hc <= '9') || (hc >= 'a' && hc <= 'f') ||
+					  (hc >= 'A' && hc <= 'F'))) {
+					valid_hex = false;
+					break;
+				}
+			}
+		}
+		if (!valid_hex && !in_list(value, VALS_edit_color)) {
+			log_error("edit.color must be #RRGGBB or one of red|yellow|green|blue|black|white");
+			return -1;
+		}
 	}
 	if (strcmp(key, "edit.width") == 0) {
 		char *end = NULL;

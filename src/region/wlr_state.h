@@ -123,6 +123,12 @@ struct ro_state {
 	int32_t move_grab_dx;
 	int32_t move_grab_dy;
 	bool slider_dragging;
+	bool eyedropper_mode;
+	bool color_picker_open;
+	bool color_picker_dragging;
+	bool color_input_active;
+	char color_input_buf[8];
+	size_t color_input_len;
 
 	int undo_timer_fd;
 	bool undo_held;
@@ -147,6 +153,7 @@ enum tb_action {
 	TB_COLOR_BLUE,
 	TB_COLOR_BLACK,
 	TB_COLOR_WHITE,
+	TB_COLOR_CURRENT,
 	TB_WIDTH_SLIDER,
 	TB_UNDO,
 	TB_SAVE,
@@ -168,6 +175,19 @@ bool region_toolbar_contains(const struct ro_state *st, int32_t abs_x, int32_t a
 void region_toolbar_slider_rect(const struct ro_state *st,
 								int32_t *out_x, int32_t *out_y,
 								int32_t *out_w, int32_t *out_h);
+void region_color_picker_rect(const struct ro_state *st,
+							  int32_t *out_x, int32_t *out_y,
+							  int32_t *out_w, int32_t *out_h);
+void region_color_input_rect(const struct ro_state *st,
+							 int32_t *out_x, int32_t *out_y,
+							 int32_t *out_w, int32_t *out_h);
+void region_color_eyedropper_rect(const struct ro_state *st,
+								  int32_t *out_x, int32_t *out_y,
+								  int32_t *out_w, int32_t *out_h);
+bool region_color_picker_pick(const struct ro_state *st, int32_t abs_x, int32_t abs_y,
+							  uint32_t *out_color);
+bool region_parse_hex_color(const char *s, uint32_t *out);
+void region_color_picker_render(cairo_t *cr, const struct ro_output *o);
 
 #define WIDTH_MIN 1
 #define WIDTH_MAX 12

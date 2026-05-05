@@ -140,8 +140,9 @@ void region_toolbar_render(cairo_t *cr, const struct ro_output *o) {
 		bool active = button_active(o->st, act);
 		bool is_color = (act >= TB_COLOR_RED && act <= TB_COLOR_WHITE);
 		bool is_slider = (act == TB_WIDTH_SLIDER);
+		bool is_current = (act == TB_COLOR_CURRENT);
 
-		if (!is_color && !is_slider) paint_button_bg(cr, act, active, bxi, byi, bwi, bhi, pad);
+		if (!is_color && !is_slider && !is_current) paint_button_bg(cr, act, active, bxi, byi, bwi, bhi, pad);
 
 		double cxi = bxi + bwi / 2.0;
 		double cyi = byi + bhi / 2.0;
@@ -150,6 +151,11 @@ void region_toolbar_render(cairo_t *cr, const struct ro_output *o) {
 		if (is_color) {
 			toolbar_color_swatch(cr, cxi, cyi, s_icon,
 								 TOOLBAR_COLORS[act - TB_COLOR_RED], active);
+			continue;
+		}
+		if (is_current) {
+			toolbar_color_current(cr, cxi, cyi, s_icon,
+								  o->st->current_color, o->st->color_picker_open);
 			continue;
 		}
 		if (is_slider) {
@@ -181,6 +187,7 @@ static const char *tooltip_text(enum tb_action act) {
 	case TB_COLOR_BLUE: return "Blue";
 	case TB_COLOR_BLACK: return "Black";
 	case TB_COLOR_WHITE: return "White";
+	case TB_COLOR_CURRENT: return "Current color  (click to open picker)";
 	case TB_WIDTH_SLIDER: return "Line width  (drag)";
 	case TB_UNDO: return "Undo  (u, hold to repeat)";
 	case TB_SAVE: return "Save  (Enter)";

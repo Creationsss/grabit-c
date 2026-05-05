@@ -153,20 +153,39 @@ static const struct {
 	{"white", 0xffffffu},
 };
 
-static uint32_t edit_color_from_name(const char *name) {
-	if (name) {
-		for (size_t i = 0; i < sizeof EDIT_COLORS / sizeof EDIT_COLORS[0]; i++) {
-			if (strcmp(EDIT_COLORS[i].name, name) == 0) return EDIT_COLORS[i].hex;
+static int hex_nybble(char c) {
+	if (c >= '0' && c <= '9') return c - '0';
+	if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+	if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+	return -1;
+}
+
+static uint32_t edit_color_from_str(const char *s) {
+	if (!s || !*s) return 0xff3030u;
+	const char *p = (*s == '#') ? s + 1 : s;
+	size_t len = strlen(p);
+	if (len == 6 || len == 3) {
+		uint32_t v = 0;
+		for (size_t i = 0; i < len; i++) {
+			int d = hex_nybble(p[i]);
+			if (d < 0) goto try_name;
+			v = (v << 4) | (uint32_t)d;
 		}
+		if (len == 3) {
+			uint32_t r = (v >> 8) & 0xf, g = (v >> 4) & 0xf, b = v & 0xf;
+			v = (r << 20) | (r << 16) | (g << 12) | (g << 8) | (b << 4) | b;
+		}
+		return v & 0xFFFFFFu;
+	}
+try_name:
+	for (size_t i = 0; i < sizeof EDIT_COLORS / sizeof EDIT_COLORS[0]; i++) {
+		if (strcmp(EDIT_COLORS[i].name, s) == 0) return EDIT_COLORS[i].hex;
 	}
 	return 0xff3030u;
 }
 
-static const char *edit_color_to_name(uint32_t hex) {
-	for (size_t i = 0; i < sizeof EDIT_COLORS / sizeof EDIT_COLORS[0]; i++) {
-		if (EDIT_COLORS[i].hex == hex) return EDIT_COLORS[i].name;
-	}
-	return "red";
+static void edit_color_to_str(uint32_t hex, char *buf, size_t cap) {
+	snprintf(buf, cap, "#%06X", hex & 0xFFFFFFu);
 }
 
 static int32_t edit_width_from_str(const char *s) {
@@ -178,7 +197,8 @@ static int32_t edit_width_from_str(const char *s) {
 }
 
 static void persist_edit_choices(struct config *cfg, uint32_t color, int32_t width) {
-	const char *cn = edit_color_to_name(color);
+	char cn[10];
+	edit_color_to_str(color, cn, sizeof cn);
 	char wn[16];
 	snprintf(wn, sizeof wn, "%d", width);
 	const char *cur_c = config_get(cfg, "edit.color");
@@ -221,7 +241,7 @@ static char *capture_to_file(const struct args *a, struct config *cfg,
 		return NULL;
 	}
 
-	uint32_t edit_color = edit_color_from_name(config_get(cfg, "edit.color"));
+	uint32_t edit_color = edit_color_from_str(config_get(cfg, "edit.color"));
 	int32_t edit_width = edit_width_from_str(config_get(cfg, "edit.width"));
 	bool edit_dirty = false;
 

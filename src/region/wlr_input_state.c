@@ -164,7 +164,9 @@ void region_drag_start(struct ro_state *st) {
 
 bool region_drag_active(const struct ro_state *st) {
 	return st->drawing || st->slider_dragging || st->moving_region ||
-		   st->handle_dragging != HANDLE_NONE;
+		   st->handle_dragging != HANDLE_NONE || st->eyedropper_mode ||
+		   st->color_picker_open || st->color_picker_dragging ||
+		   st->color_input_active;
 }
 
 void region_drag_abort(struct ro_state *st) {
@@ -177,6 +179,11 @@ void region_drag_abort(struct ro_state *st) {
 	st->slider_dragging = false;
 	st->moving_region = false;
 	st->handle_dragging = HANDLE_NONE;
+	st->eyedropper_mode = false;
+	st->color_picker_open = false;
+	st->color_picker_dragging = false;
+	st->color_input_active = false;
+	st->color_input_len = 0;
 	if (st->text_input_active) {
 		st->text_input_active = false;
 		st->text_len = 0;

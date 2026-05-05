@@ -363,6 +363,7 @@ static void output_redraw(struct ro_output *o) {
 			cairo_stroke(cr);
 		}
 
+		region_color_picker_render(cr, o);
 		region_toolbar_tooltip_render(cr, o);
 	}
 

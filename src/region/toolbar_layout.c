@@ -25,6 +25,7 @@ int toolbar_row_of(enum tb_action act) {
 
 int32_t toolbar_btn_w(enum tb_action act) {
 	if (act >= TB_COLOR_RED && act <= TB_COLOR_WHITE) return 26;
+	if (act == TB_COLOR_CURRENT) return 28;
 	if (act == TB_WIDTH_SLIDER) return TB_SLIDER_W;
 	return TB_BTN_W;
 }
@@ -34,6 +35,7 @@ int32_t toolbar_btn_h(enum tb_action act) {
 }
 
 static int32_t section_gap_before(enum tb_action act) {
+	if (act == TB_COLOR_CURRENT) return 8;
 	if (act == TB_WIDTH_SLIDER) return 12;
 	if (act == TB_UNDO) return 10;
 	return 2;

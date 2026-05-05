@@ -137,8 +137,8 @@ static int example_for_key(const char *key, const char **example_out, const char
 	if (strncmp(key, "edit.", 5) == 0) {
 		const char *leaf = key + 5;
 		if (strcmp(leaf, "color") == 0) {
-			*example_out = "red|yellow|green|blue|black|white";
-			*def_out = "red";
+			*example_out = "#RRGGBB or red|yellow|green|blue|black|white";
+			*def_out = "#FF3030";
 			return 0;
 		}
 		if (strcmp(leaf, "width") == 0) {

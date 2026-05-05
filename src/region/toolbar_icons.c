@@ -148,6 +148,31 @@ void toolbar_icon_cancel(cairo_t *cr, double cx, double cy, double s) {
 	cairo_stroke(cr);
 }
 
+void toolbar_icon_color_picker(cairo_t *cr, double cx, double cy, double s) {
+	double w = 2.0 * (s / 24.0);
+	cairo_set_line_width(cr, w);
+	cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
+
+	double r = s * 0.40;
+	double inner = r * 0.45;
+
+	cairo_arc(cr, cx, cy, r, 0, 2.0 * M_PI);
+	cairo_stroke(cr);
+
+	cairo_move_to(cr, cx, cy - r);
+	cairo_line_to(cr, cx, cy - inner);
+	cairo_move_to(cr, cx, cy + inner);
+	cairo_line_to(cr, cx, cy + r);
+	cairo_move_to(cr, cx - r, cy);
+	cairo_line_to(cr, cx - inner, cy);
+	cairo_move_to(cr, cx + inner, cy);
+	cairo_line_to(cr, cx + r, cy);
+	cairo_stroke(cr);
+
+	cairo_arc(cr, cx, cy, w * 1.4, 0, 2.0 * M_PI);
+	cairo_fill(cr);
+}
+
 void toolbar_color_swatch(cairo_t *cr, double cx, double cy, double s,
 						  uint32_t color, bool active) {
 	double r = s * 0.42;
@@ -160,5 +185,37 @@ void toolbar_color_swatch(cairo_t *cr, double cx, double cy, double s,
 	cairo_set_source_rgba(cr, active ? 1.0 : 0.0, active ? 1.0 : 0.0, active ? 1.0 : 0.0, active ? 1.0 : 0.45);
 	cairo_set_line_width(cr, active ? 2.2 * (s / 24.0) : 1.2 * (s / 24.0));
 	cairo_arc(cr, cx, cy, r, 0, 2.0 * M_PI);
+	cairo_stroke(cr);
+}
+
+void toolbar_color_current(cairo_t *cr, double cx, double cy, double s,
+						   uint32_t color, bool active) {
+	double half = s * 0.46;
+	double radius = s * 0.10;
+	double x0 = cx - half;
+	double y0 = cy - half;
+	double w = half * 2;
+	double h = half * 2;
+
+	cairo_new_sub_path(cr);
+	cairo_arc(cr, x0 + radius, y0 + radius, radius, M_PI, 1.5 * M_PI);
+	cairo_arc(cr, x0 + w - radius, y0 + radius, radius, 1.5 * M_PI, 2.0 * M_PI);
+	cairo_arc(cr, x0 + w - radius, y0 + h - radius, radius, 0.0, 0.5 * M_PI);
+	cairo_arc(cr, x0 + radius, y0 + h - radius, radius, 0.5 * M_PI, M_PI);
+	cairo_close_path(cr);
+
+	double rr = ((color >> 16) & 0xff) / 255.0;
+	double gg = ((color >> 8) & 0xff) / 255.0;
+	double bb = (color & 0xff) / 255.0;
+	cairo_set_source_rgba(cr, rr, gg, bb, 1);
+	cairo_fill_preserve(cr);
+
+	if (active) {
+		cairo_set_source_rgba(cr, 1.0, 0.55, 0.32, 1);
+		cairo_set_line_width(cr, 2.4 * (s / 24.0));
+	} else {
+		cairo_set_source_rgba(cr, 1, 1, 1, 0.85);
+		cairo_set_line_width(cr, 1.8 * (s / 24.0));
+	}
 	cairo_stroke(cr);
 }

@@ -4,6 +4,7 @@
 #define _XOPEN_SOURCE 700
 #include "region/wlr_state.h"
 
+#include "capture/capture.h"
 #include "region/annotate.h"
 #include "region/wlr_input_state.h"
 #include "wl.h"
@@ -31,6 +32,21 @@ static const uint32_t TB_COLORS[6] = {
 static void apply_cursor(struct ro_state *st, struct wl_pointer *p, uint32_t serial,
 						 struct ro_output *o, struct wl_cursor *c);
 
+static bool eyedropper_sample(struct ro_state *st, uint32_t *out_color) {
+	if (!st->cursor_on || !st->frozen) return false;
+	struct ro_output *ro = st->cursor_on;
+	const struct image *img = &st->frozen[ro->idx];
+	if (!img->bytes || img->stride <= 0) return false;
+	int32_t scale = ro->go->scale > 0 ? ro->go->scale : 1;
+	int32_t px = (st->cursor_x - ro->go->x) * scale;
+	int32_t py = (st->cursor_y - ro->go->y) * scale;
+	if (px < 0 || py < 0 || px >= img->width || py >= img->height) return false;
+	const uint8_t *row = (const uint8_t *)img->bytes + (size_t)py * (size_t)img->stride;
+	uint32_t pixel = ((const uint32_t *)row)[px];
+	*out_color = pixel & 0xFFFFFFu;
+	return true;
+}
+
 static struct wl_cursor *pick_cursor(const struct ro_state *st, int32_t abs_x, int32_t abs_y) {
 	if (st->region_locked) {
 		if (st->moving_region && st->cursor_move) return st->cursor_move;
@@ -42,6 +58,7 @@ static struct wl_cursor *pick_cursor(const struct ro_state *st, int32_t abs_x, i
 			if (a != TB_NONE && st->cursor_hand) return st->cursor_hand;
 			if (st->cursor_default) return st->cursor_default;
 		}
+		if (st->eyedropper_mode) return st->cursor;
 		int h = region_handle_at(st, abs_x, abs_y);
 		if (h != HANDLE_NONE && st->cursor_resize[h]) return st->cursor_resize[h];
 		if (h != HANDLE_NONE && st->cursor_default) return st->cursor_default;
@@ -123,6 +140,12 @@ static void pointer_motion(void *data, struct wl_pointer *p, uint32_t time,
 			if (frac > 1) frac = 1;
 			st->current_width = WIDTH_MIN +
 				(int32_t)(frac * (WIDTH_MAX - WIDTH_MIN) + 0.5);
+		} else if (st->color_picker_dragging) {
+			uint32_t picked = 0;
+			if (region_color_picker_pick(st, st->cursor_x, st->cursor_y, &picked)) {
+				st->current_color = picked;
+				st->edit_choices_dirty = true;
+			}
 		} else if (st->moving_region) {
 			st->sel_x = st->cursor_x - st->move_grab_dx;
 			st->sel_y = st->cursor_y - st->move_grab_dy;
@@ -176,6 +199,73 @@ static void pointer_button(void *data, struct wl_pointer *p, uint32_t serial,
 		return;
 	}
 
+	if (state == WL_POINTER_BUTTON_STATE_RELEASED && st->color_picker_dragging) {
+		st->color_picker_dragging = false;
+		region_render_request_redraw_all(st);
+		return;
+	}
+
+	if (st->color_picker_open && state == WL_POINTER_BUTTON_STATE_PRESSED) {
+		int32_t px, py, pw, ph;
+		region_color_picker_rect(st, &px, &py, &pw, &ph);
+		bool inside_grid = pw > 0 && ph > 0 &&
+						   st->cursor_x >= px && st->cursor_x < px + pw &&
+						   st->cursor_y >= py && st->cursor_y < py + ph;
+		int32_t ix, iy, iw, ih;
+		region_color_input_rect(st, &ix, &iy, &iw, &ih);
+		bool inside_input = iw > 0 && ih > 0 &&
+							st->cursor_x >= ix && st->cursor_x < ix + iw &&
+							st->cursor_y >= iy && st->cursor_y < iy + ih;
+		int32_t ex, ey, ew, eh;
+		region_color_eyedropper_rect(st, &ex, &ey, &ew, &eh);
+		bool inside_eyedropper = ew > 0 && eh > 0 &&
+								 st->cursor_x >= ex && st->cursor_x < ex + ew &&
+								 st->cursor_y >= ey && st->cursor_y < ey + eh;
+		if (inside_eyedropper) {
+			st->eyedropper_mode = !st->eyedropper_mode;
+			st->color_input_active = false;
+			refresh_cursor(st, p);
+			region_render_request_redraw_all(st);
+			return;
+		}
+		if (inside_grid) {
+			st->color_input_active = false;
+			uint32_t picked = 0;
+			if (region_color_picker_pick(st, st->cursor_x, st->cursor_y, &picked)) {
+				st->current_color = picked;
+				st->edit_choices_dirty = true;
+			}
+			st->color_picker_dragging = true;
+			region_render_request_redraw_all(st);
+			return;
+		}
+		if (inside_input) {
+			st->color_input_active = true;
+			snprintf(st->color_input_buf, sizeof st->color_input_buf,
+					 "%06X", st->current_color & 0xFFFFFFu);
+			st->color_input_len = 6;
+			region_render_request_redraw_all(st);
+			return;
+		}
+		if (st->color_input_active) {
+			uint32_t parsed = 0;
+			if (region_parse_hex_color(st->color_input_buf, &parsed)) {
+				st->current_color = parsed;
+				st->edit_choices_dirty = true;
+			}
+			st->color_input_active = false;
+			st->color_input_len = 0;
+		}
+		if (st->eyedropper_mode) {
+			/* fall through to eyedropper sample below; keep panel open */
+		} else if (!region_toolbar_contains(st, st->cursor_x, st->cursor_y)) {
+			st->color_picker_open = false;
+			refresh_cursor(st, p);
+			region_render_request_redraw_all(st);
+			return;
+		}
+	}
+
 	if (st->region_locked && region_toolbar_contains(st, st->cursor_x, st->cursor_y)) {
 		enum tb_action act = region_toolbar_hit(st, st->cursor_x, st->cursor_y);
 		if (act != TB_NONE) {
@@ -198,6 +288,12 @@ static void pointer_button(void *data, struct wl_pointer *p, uint32_t serial,
 				} else if (act >= TB_COLOR_RED && act <= TB_COLOR_WHITE) {
 					st->current_color = TB_COLORS[act - TB_COLOR_RED];
 					st->edit_choices_dirty = true;
+					st->eyedropper_mode = false;
+					st->color_picker_open = false;
+				} else if (act == TB_COLOR_CURRENT) {
+					st->color_picker_open = !st->color_picker_open;
+					st->eyedropper_mode = false;
+					refresh_cursor(st, p);
 				} else if (act == TB_WIDTH_SLIDER) {
 					int32_t sx, sy, sw, sh;
 					region_toolbar_slider_rect(st, &sx, &sy, &sw, &sh);
@@ -259,6 +355,17 @@ static void pointer_button(void *data, struct wl_pointer *p, uint32_t serial,
 	}
 
 	if (state == WL_POINTER_BUTTON_STATE_PRESSED) {
+		if (st->eyedropper_mode) {
+			uint32_t picked = 0;
+			if (eyedropper_sample(st, &picked)) {
+				st->current_color = picked;
+				st->edit_choices_dirty = true;
+			}
+			st->eyedropper_mode = false;
+			refresh_cursor(st, p);
+			region_render_request_redraw_all(st);
+			return;
+		}
 		int h = region_handle_at(st, st->cursor_x, st->cursor_y);
 		if (h != HANDLE_NONE) {
 			st->handle_dragging = h;
@@ -407,6 +514,41 @@ static void keyboard_key(void *data, struct wl_keyboard *kb, uint32_t serial,
 
 	if (st->text_input_active) {
 		handle_text_input(st, sym, key);
+		region_render_request_redraw_all(st);
+		return;
+	}
+
+	if (st->color_input_active) {
+		if (sym == XKB_KEY_Escape) {
+			st->color_input_active = false;
+			st->color_input_len = 0;
+		} else if (sym == XKB_KEY_Return || sym == XKB_KEY_KP_Enter) {
+			uint32_t parsed = 0;
+			if (region_parse_hex_color(st->color_input_buf, &parsed)) {
+				st->current_color = parsed;
+				st->edit_choices_dirty = true;
+			}
+			st->color_input_active = false;
+			st->color_input_len = 0;
+		} else if (sym == XKB_KEY_BackSpace) {
+			if (st->color_input_len > 0) {
+				st->color_input_len--;
+				st->color_input_buf[st->color_input_len] = '\0';
+			}
+		} else {
+			char buf[8];
+			int n = xkb_state_key_get_utf8(st->xkb_state, key + 8, buf, sizeof buf);
+			if (n == 1) {
+				char c = buf[0];
+				bool is_hex = (c >= '0' && c <= '9') ||
+							  (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+				if (is_hex && st->color_input_len < 6) {
+					st->color_input_buf[st->color_input_len++] =
+						(c >= 'a' && c <= 'f') ? (char)(c - 32) : c;
+					st->color_input_buf[st->color_input_len] = '\0';
+				}
+			}
+		}
 		region_render_request_redraw_all(st);
 		return;
 	}

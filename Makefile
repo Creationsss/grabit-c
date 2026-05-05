@@ -95,6 +95,7 @@ GRABIT_SRCS := \
 	src/region/toolbar.c \
 	src/region/toolbar_layout.c \
 	src/region/toolbar_icons.c \
+	src/region/color_picker.c \
 	src/util/json_path.c \
 	src/clipboard/clipboard.c \
 	src/clipboard/wlr_data_control.c \
