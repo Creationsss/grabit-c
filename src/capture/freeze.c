@@ -12,13 +12,17 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-int grabit_freeze_capture(struct grabit_wl_state *s, const char *path, struct rect *out_rect) {
+int grabit_freeze_capture(struct grabit_wl_state *s, const char *path,
+						  struct rect *out_rect, bool annotate,
+						  uint32_t *inout_color, int32_t *inout_width,
+						  bool *out_choices_dirty) {
 	struct image *frozen = calloc(s->n_outputs, sizeof *frozen);
 	if (!frozen) return -1;
 
 	int rc = -1;
 	size_t captured = 0;
 	struct png_slice *slices = NULL;
+	struct annotation_list annos = {0};
 
 	for (size_t i = 0; i < s->n_outputs; i++) {
 		if (capture_output_full(s, s->outputs[i], &frozen[i]) != 0) {
@@ -34,7 +38,8 @@ int grabit_freeze_capture(struct grabit_wl_state *s, const char *path, struct re
 	}
 
 	struct rect r;
-	if (region_select(s, frozen, &r) != 0) {
+	if (region_select(s, frozen, annotate, &r, annotate ? &annos : NULL,
+					  inout_color, inout_width, out_choices_dirty) != 0) {
 		log_info("region selection cancelled");
 		goto cleanup;
 	}
@@ -95,7 +100,9 @@ int grabit_freeze_capture(struct grabit_wl_state *s, const char *path, struct re
 		goto cleanup;
 	}
 
-	rc = grabit_png_write_composite(dst_w, dst_h, slices, n_slices, path);
+	rc = grabit_png_write_composite_annotated(dst_w, dst_h, slices, n_slices,
+											  &r, max_scale,
+											  annos.n > 0 ? &annos : NULL, path);
 
 	if (rc == 0 && out_rect) *out_rect = r;
 
@@ -104,5 +111,6 @@ cleanup:
 	for (size_t i = 0; i < captured; i++)
 		image_free(&frozen[i]);
 	free(frozen);
+	annotation_list_free(&annos);
 	return rc;
 }

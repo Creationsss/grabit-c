@@ -240,7 +240,7 @@ int record_toggle(struct config *cfg, const struct args *a) {
 	}
 
 	struct rect r;
-	int rc = region_select(&s, frozen, &r);
+	int rc = region_select(&s, frozen, false, &r, NULL, NULL, NULL, NULL);
 	for (size_t i = 0; i < s.n_outputs; i++)
 		image_free(&frozen[i]);
 	free(frozen);

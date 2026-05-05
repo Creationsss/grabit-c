@@ -5,6 +5,8 @@
 
 #include "capture/capture.h"
 #include "log.h"
+#include "region/annotate.h"
+#include "region/region.h"
 #include "util.h"
 
 #include <cairo/cairo.h>
@@ -112,22 +114,14 @@ static cairo_format_t image_cairo_format(uint32_t fmt) {
 	}
 }
 
-int grabit_png_write_composite(int32_t dst_w, int32_t dst_h,
-							   const struct png_slice *slices, size_t n,
-							   const char *path) {
-	if (!path || dst_w <= 0 || dst_h <= 0 || n == 0 || !slices) return -1;
-	if (dst_w > GRABIT_MAX_PIXEL_SIDE || dst_h > GRABIT_MAX_PIXEL_SIDE) {
-		log_error("png composite: %dx%d exceeds %d-px side cap",
-				  dst_w, dst_h, GRABIT_MAX_PIXEL_SIDE);
-		return -1;
-	}
-
+static cairo_surface_t *build_composite_surface(int32_t dst_w, int32_t dst_h,
+												const struct png_slice *slices, size_t n) {
 	cairo_surface_t *dst = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, dst_w, dst_h);
 	if (cairo_surface_status(dst) != CAIRO_STATUS_SUCCESS) {
 		log_error("cairo composite dst: %s",
 				  cairo_status_to_string(cairo_surface_status(dst)));
 		cairo_surface_destroy(dst);
-		return -1;
+		return NULL;
 	}
 
 	cairo_t *cr = cairo_create(dst);
@@ -168,6 +162,52 @@ int grabit_png_write_composite(int32_t dst_w, int32_t dst_h,
 	}
 
 	cairo_destroy(cr);
+	return dst;
+}
+
+int grabit_png_write_composite(int32_t dst_w, int32_t dst_h,
+							   const struct png_slice *slices, size_t n,
+							   const char *path) {
+	if (!path || dst_w <= 0 || dst_h <= 0 || n == 0 || !slices) return -1;
+	if (dst_w > GRABIT_MAX_PIXEL_SIDE || dst_h > GRABIT_MAX_PIXEL_SIDE) {
+		log_error("png composite: %dx%d exceeds %d-px side cap",
+				  dst_w, dst_h, GRABIT_MAX_PIXEL_SIDE);
+		return -1;
+	}
+
+	cairo_surface_t *dst = build_composite_surface(dst_w, dst_h, slices, n);
+	if (!dst) return -1;
+
+	cairo_status_t st = cairo_surface_write_to_png(dst, path);
+	cairo_surface_destroy(dst);
+
+	if (st != CAIRO_STATUS_SUCCESS) {
+		log_error("cairo_surface_write_to_png(%s): %s", path, cairo_status_to_string(st));
+		return -1;
+	}
+	return 0;
+}
+
+int grabit_png_write_composite_annotated(int32_t dst_w, int32_t dst_h,
+										 const struct png_slice *slices, size_t n,
+										 const struct rect *region, int32_t scale,
+										 const struct annotation_list *annos,
+										 const char *path) {
+	if (!path || dst_w <= 0 || dst_h <= 0 || n == 0 || !slices) return -1;
+	if (dst_w > GRABIT_MAX_PIXEL_SIDE || dst_h > GRABIT_MAX_PIXEL_SIDE) {
+		log_error("png composite: %dx%d exceeds %d-px side cap",
+				  dst_w, dst_h, GRABIT_MAX_PIXEL_SIDE);
+		return -1;
+	}
+
+	cairo_surface_t *dst = build_composite_surface(dst_w, dst_h, slices, n);
+	if (!dst) return -1;
+
+	if (annos && region && scale > 0) {
+		cairo_t *cr = cairo_create(dst);
+		annotation_list_paint(cr, annos, region->x, region->y, (double)scale);
+		cairo_destroy(cr);
+	}
 
 	cairo_status_t st = cairo_surface_write_to_png(dst, path);
 	cairo_surface_destroy(dst);

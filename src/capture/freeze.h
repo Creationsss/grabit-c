@@ -4,9 +4,15 @@
 #ifndef GRABIT_CAPTURE_FREEZE_H
 #define GRABIT_CAPTURE_FREEZE_H
 
+#include <stdbool.h>
+#include <stdint.h>
+
 struct grabit_wl_state;
 struct rect;
 
-int grabit_freeze_capture(struct grabit_wl_state *s, const char *path, struct rect *out_rect);
+int grabit_freeze_capture(struct grabit_wl_state *s, const char *path,
+						  struct rect *out_rect, bool annotate,
+						  uint32_t *inout_color, int32_t *inout_width,
+						  bool *out_choices_dirty);
 
 #endif

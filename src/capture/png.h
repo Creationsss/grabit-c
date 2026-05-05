@@ -25,4 +25,12 @@ int grabit_png_write_composite(int32_t dst_w, int32_t dst_h,
 							   const struct png_slice *slices, size_t n,
 							   const char *path);
 
+struct rect;
+struct annotation_list;
+int grabit_png_write_composite_annotated(int32_t dst_w, int32_t dst_h,
+										 const struct png_slice *slices, size_t n,
+										 const struct rect *region, int32_t scale,
+										 const struct annotation_list *annos,
+										 const char *path);
+
 #endif

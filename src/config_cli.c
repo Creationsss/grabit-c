@@ -134,6 +134,19 @@ static int example_for_key(const char *key, const char **example_out, const char
 			return 0;
 		}
 	}
+	if (strncmp(key, "edit.", 5) == 0) {
+		const char *leaf = key + 5;
+		if (strcmp(leaf, "color") == 0) {
+			*example_out = "red|yellow|green|blue|black|white";
+			*def_out = "red";
+			return 0;
+		}
+		if (strcmp(leaf, "width") == 0) {
+			*example_out = "1..20";
+			*def_out = "4";
+			return 0;
+		}
+	}
 	if (strncmp(key, "sound.", 6) == 0) {
 		const char *leaf = key + 6;
 		if (strcmp(leaf, "enabled") == 0) {
@@ -238,6 +251,9 @@ static void print_set_help(void) {
 	for (size_t i = 0; SOUND_KEYS[i]; i++) {
 		print_key_with_default(SOUND_KEYS[i], find_default(SOUND_KEYS[i]));
 	}
+	puts("");
+	print_key_with_default("edit.color", find_default("edit.color"));
+	print_key_with_default("edit.width", find_default("edit.width"));
 	puts("");
 	print_key_with_default("ocr.tesseract", find_default("ocr.tesseract"));
 }

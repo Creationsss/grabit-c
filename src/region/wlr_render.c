@@ -6,10 +6,12 @@
 
 #include "capture/capture.h"
 #include "log.h"
+#include "region/annotate.h"
 #include "util.h"
 #include "wl.h"
 
 #include <errno.h>
+#include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -121,6 +123,7 @@ static void frame_done(void *data, struct wl_callback *cb, uint32_t time) {
 	struct ro_output *o = data;
 	wl_callback_destroy(cb);
 	o->frame_cb = NULL;
+	if (o->st->cleanup) return;
 	if (o->dirty) output_redraw(o);
 }
 
@@ -208,6 +211,151 @@ static void output_redraw(struct ro_output *o) {
 		}
 	}
 
+	if (o->st->annotate_mode && o->st->region_locked) {
+		cairo_save(cr);
+		cairo_translate(cr, -o->go->x * S, -o->go->y * S);
+		cairo_scale(cr, S, S);
+		if (o->st->out_annos) {
+			for (size_t i = 0; i < o->st->out_annos->n; i++) {
+				annotation_paint(cr, &o->st->out_annos->items[i], 1.0);
+			}
+		}
+		if (o->st->drawing) {
+			int32_t px1 = o->st->cursor_x, py1 = o->st->cursor_y;
+			if (o->st->shift_held && o->st->current_tool != TOOL_PEN) {
+				if (o->st->current_tool == TOOL_RECT ||
+					o->st->current_tool == TOOL_ELLIPSE ||
+					o->st->current_tool == TOOL_BLUR) {
+					int32_t dx = px1 - o->st->draw_x0;
+					int32_t dy = py1 - o->st->draw_y0;
+					int32_t adx = dx < 0 ? -dx : dx;
+					int32_t ady = dy < 0 ? -dy : dy;
+					int32_t side = adx > ady ? adx : ady;
+					px1 = o->st->draw_x0 + (dx < 0 ? -side : side);
+					py1 = o->st->draw_y0 + (dy < 0 ? -side : side);
+				} else if (o->st->current_tool == TOOL_ARROW) {
+					double angle = atan2((double)(py1 - o->st->draw_y0),
+										 (double)(px1 - o->st->draw_x0));
+					double snap = round(angle / (M_PI / 4.0)) * (M_PI / 4.0);
+					double dx = px1 - o->st->draw_x0, dy = py1 - o->st->draw_y0;
+					double len = sqrt(dx * dx + dy * dy);
+					px1 = o->st->draw_x0 + (int32_t)(len * cos(snap));
+					py1 = o->st->draw_y0 + (int32_t)(len * sin(snap));
+				}
+			}
+			struct annotation preview = {
+				.tool = o->st->current_tool,
+				.x0 = o->st->draw_x0,
+				.y0 = o->st->draw_y0,
+				.x1 = px1,
+				.y1 = py1,
+				.color = o->st->current_color,
+				.width = o->st->current_width,
+				.font_size = 18,
+				.points = o->st->pen_points,
+				.n_points = o->st->pen_n,
+			};
+			annotation_paint(cr, &preview, 1.0);
+		}
+		if (o->st->text_input_active) {
+			double font = 18.0;
+			cairo_select_font_face(cr, "sans-serif",
+								   CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
+			cairo_set_font_size(cr, font);
+			cairo_text_extents_t typed_ext = {0};
+			if (o->st->text_len > 0) {
+				cairo_text_extents(cr, o->st->text_buf, &typed_ext);
+			}
+			double pad = 4.0;
+			double pill_w = (typed_ext.width > 0 ? typed_ext.width : font * 0.6) + 2 * pad;
+			double pill_top = (double)o->st->text_y + typed_ext.y_bearing - pad;
+			double pill_h = (typed_ext.height > 0 ? typed_ext.height : font) + 2 * pad;
+			cairo_set_source_rgba(cr, 0, 0, 0, 0.55);
+			cairo_rectangle(cr, (double)o->st->text_x - pad, pill_top, pill_w, pill_h);
+			cairo_fill(cr);
+			if (o->st->text_len > 0) {
+				struct annotation preview = {
+					.tool = TOOL_TEXT,
+					.x0 = o->st->text_x,
+					.y0 = o->st->text_y,
+					.color = o->st->current_color,
+					.font_size = 18,
+					.text = (char *)o->st->text_buf,
+				};
+				annotation_paint(cr, &preview, 1.0);
+			}
+
+			double cursor_x = (double)o->st->text_x + typed_ext.width;
+			cairo_set_source_rgba(cr, 1.0, 0.18, 0.18, 1.0);
+			cairo_set_line_width(cr, 1.5);
+			cairo_move_to(cr, cursor_x, (double)o->st->text_y + typed_ext.y_bearing);
+			cairo_line_to(cr, cursor_x, (double)o->st->text_y + 2);
+			cairo_stroke(cr);
+		}
+		cairo_restore(cr);
+
+		if (o->st->text_input_active) {
+			const char *hint = o->st->text_len > 0
+								   ? "type more, enter to commit, esc to cancel"
+								   : "type your text, enter to commit, esc to cancel";
+			cairo_select_font_face(cr, "sans-serif",
+								   CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL);
+			cairo_set_font_size(cr, 12.0 * S);
+			cairo_text_extents_t hext;
+			cairo_text_extents(cr, hint, &hext);
+			double pad = 8.0 * S;
+			double tx = (double)(o->st->text_x - o->go->x) * S - hext.width / 2.0;
+			double ty = (double)(o->st->text_y - o->go->y) * S + 22.0 * S;
+			if (tx < pad) tx = pad;
+			if (tx + hext.width + pad > pw) tx = pw - hext.width - pad;
+			if (ty + hext.height + pad > ph) ty = ph - hext.height - pad;
+			cairo_set_source_rgba(cr, 0, 0, 0, 0.78);
+			cairo_rectangle(cr, tx - pad, ty - hext.height - pad,
+							hext.width + pad * 2, hext.height + pad * 2);
+			cairo_fill(cr);
+			cairo_set_source_rgba(cr, 1, 1, 1, 1);
+			cairo_move_to(cr, tx, ty);
+			cairo_show_text(cr, hint);
+		}
+
+		region_toolbar_render(cr, o);
+
+		int32_t hx[8], hy[8];
+		int32_t l = (o->st->sel_x - o->go->x) * S;
+		int32_t t = (o->st->sel_y - o->go->y) * S;
+		int32_t r = l + o->st->sel_w * S;
+		int32_t b = t + o->st->sel_h * S;
+		int32_t mx = (l + r) / 2, my = (t + b) / 2;
+		hx[0] = l;
+		hy[0] = t;
+		hx[1] = mx;
+		hy[1] = t;
+		hx[2] = r;
+		hy[2] = t;
+		hx[3] = r;
+		hy[3] = my;
+		hx[4] = r;
+		hy[4] = b;
+		hx[5] = mx;
+		hy[5] = b;
+		hx[6] = l;
+		hy[6] = b;
+		hx[7] = l;
+		hy[7] = my;
+		double hr = 6.0 * S;
+		for (int i = 0; i < 8; i++) {
+			cairo_set_source_rgba(cr, 1, 1, 1, 0.95);
+			cairo_arc(cr, hx[i], hy[i], hr, 0, 2.0 * M_PI);
+			cairo_fill(cr);
+			cairo_set_source_rgba(cr, 0, 0, 0, 0.85);
+			cairo_set_line_width(cr, 1.5 * S);
+			cairo_arc(cr, hx[i], hy[i], hr, 0, 2.0 * M_PI);
+			cairo_stroke(cr);
+		}
+
+		region_toolbar_tooltip_render(cr, o);
+	}
+
 	cairo_destroy(cr);
 	cairo_surface_flush(o->cairo_dst);
 
@@ -234,6 +382,10 @@ struct ro_output *region_render_find_by_surface(struct ro_state *st, struct wl_s
 static void layer_surface_configure(void *data, struct zwlr_layer_surface_v1 *ls,
 									uint32_t serial, uint32_t w, uint32_t h) {
 	struct ro_output *o = data;
+	if (o->st->cleanup) {
+		zwlr_layer_surface_v1_ack_configure(ls, serial);
+		return;
+	}
 	o->width = (int32_t)w;
 	o->height = (int32_t)h;
 	zwlr_layer_surface_v1_ack_configure(ls, serial);

@@ -49,6 +49,7 @@ static const char *KNOWN_SERVICES[] = {
 
 static const char *VALS_default_action[] = {"upload", "copy", "save", "pin", NULL};
 static const char *VALS_filename_preset[] = {"date", "random", "uuid", "timestamp", NULL};
+static const char *VALS_edit_color[] = {"red", "yellow", "green", "blue", "black", "white", NULL};
 
 static const char *VALS_zl_format[] = {"random", "date", "uuid", "name", "gfycat", NULL};
 static const char *VALS_zl_compress[] = {"jpg", "png", "webp", "jxl", NULL};
@@ -403,6 +404,14 @@ static bool valid_ocr_key(const char *key) {
 	return false;
 }
 
+static bool valid_edit_key(const char *key) {
+	if (strncmp(key, "edit.", 5) != 0) return false;
+	const char *leaf = key + 5;
+	if (strcmp(leaf, "color") == 0) return true;
+	if (strcmp(leaf, "width") == 0) return true;
+	return false;
+}
+
 static bool valid_sound_key(const char *key) {
 	if (strncmp(key, "sound.", 6) != 0) return false;
 	const char *leaf = key + 6;
@@ -479,7 +488,7 @@ static int validate_int_in_range(const char *key, const char *value, long lo, lo
 
 int config_set(struct config *c, const char *key, const char *value) {
 	if (!valid_top_key(key) && !valid_service_key(key) && !valid_recording_key(key) &&
-		!valid_ocr_key(key) && !valid_sound_key(key)) {
+		!valid_ocr_key(key) && !valid_sound_key(key) && !valid_edit_key(key)) {
 		log_error("unknown config key: %s", key);
 		return -1;
 	}
@@ -524,6 +533,18 @@ int config_set(struct config *c, const char *key, const char *value) {
 	if (strcmp(key, "service") == 0 && !is_known_service(value)) {
 		log_error("service must be one of zipline|nest|fakecrime|ez|guns|pixelvault");
 		return -1;
+	}
+	if (strcmp(key, "edit.color") == 0 && !in_list(value, VALS_edit_color)) {
+		log_error("edit.color must be one of red|yellow|green|blue|black|white");
+		return -1;
+	}
+	if (strcmp(key, "edit.width") == 0) {
+		char *end = NULL;
+		long v = strtol(value, &end, 10);
+		if (!*value || end == value || *end || v < 1 || v > 20) {
+			log_error("edit.width must be an integer between 1 and 20");
+			return -1;
+		}
 	}
 	if (is_bool_key(key) && strcmp(value, "true") != 0 && strcmp(value, "false") != 0) {
 		log_error("%s must be true or false", key);

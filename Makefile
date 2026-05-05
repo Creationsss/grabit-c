@@ -91,6 +91,10 @@ GRABIT_SRCS := \
 	src/capture/png.c \
 	src/capture/transform.c \
 	src/capture/freeze.c \
+	src/region/annotate.c \
+	src/region/toolbar.c \
+	src/region/toolbar_layout.c \
+	src/region/toolbar_icons.c \
 	src/util/json_path.c \
 	src/clipboard/clipboard.c \
 	src/clipboard/wlr_data_control.c \
@@ -98,6 +102,7 @@ GRABIT_SRCS := \
 	src/region/wlr_layer.c \
 	src/region/wlr_render.c \
 	src/region/wlr_input.c \
+	src/region/wlr_input_state.c \
 	src/record/record.c \
 	src/record/ring.c \
 	src/record/ffmpeg.c \
@@ -108,7 +113,6 @@ GRABIT_SRCS := \
 	src/tray/tray.c \
 	src/upload/upload.c \
 	src/ocr/tesseract.c \
-	src/edit/edit.c \
 	src/sound/sound.c \
 	src/pin/pin.c \
 	src/pin/pin_render.c \

@@ -15,7 +15,6 @@
 #include "capture/freeze.h"
 #include "clipboard/clipboard.h"
 #include "config.h"
-#include "edit/edit.h"
 #include "log.h"
 #include "mime.h"
 #include "notify/notify.h"
@@ -141,6 +140,58 @@ static char *build_capture_path(const struct args *a, struct config *cfg,
 	return paths_build_output(cfg, a->filename_tpl, ".png", dest);
 }
 
+static const struct {
+	const char *name;
+	uint32_t hex;
+} EDIT_COLORS[] = {
+	{"red", 0xff3030u},
+	{"yellow", 0xfff030u},
+	{"green", 0x40ff40u},
+	{"blue", 0x4080ffu},
+	{"black", 0x000000u},
+	{"white", 0xffffffu},
+};
+
+static uint32_t edit_color_from_name(const char *name) {
+	if (name) {
+		for (size_t i = 0; i < sizeof EDIT_COLORS / sizeof EDIT_COLORS[0]; i++) {
+			if (strcmp(EDIT_COLORS[i].name, name) == 0) return EDIT_COLORS[i].hex;
+		}
+	}
+	return 0xff3030u;
+}
+
+static const char *edit_color_to_name(uint32_t hex) {
+	for (size_t i = 0; i < sizeof EDIT_COLORS / sizeof EDIT_COLORS[0]; i++) {
+		if (EDIT_COLORS[i].hex == hex) return EDIT_COLORS[i].name;
+	}
+	return "red";
+}
+
+static int32_t edit_width_from_str(const char *s) {
+	if (!s) return 4;
+	char *end = NULL;
+	long v = strtol(s, &end, 10);
+	if (end == s || v < 1 || v > 20) return 4;
+	return (int32_t)v;
+}
+
+static void persist_edit_choices(struct config *cfg, uint32_t color, int32_t width) {
+	const char *cn = edit_color_to_name(color);
+	char wn[16];
+	snprintf(wn, sizeof wn, "%d", width);
+	const char *cur_c = config_get(cfg, "edit.color");
+	const char *cur_w = config_get(cfg, "edit.width");
+	bool changed = false;
+	if (!cur_c || strcmp(cur_c, cn) != 0) {
+		if (config_set(cfg, "edit.color", cn) == 0) changed = true;
+	}
+	if (!cur_w || strcmp(cur_w, wn) != 0) {
+		if (config_set(cfg, "edit.width", wn) == 0) changed = true;
+	}
+	if (changed) (void)config_save(cfg);
+}
+
 static char *capture_to_file(const struct args *a, struct config *cfg,
 							 enum action eff, bool *is_temp,
 							 struct rect *out_rect) {
@@ -169,8 +220,17 @@ static char *capture_to_file(const struct args *a, struct config *cfg,
 		return NULL;
 	}
 
-	int rc = grabit_freeze_capture(&s, path, out_rect);
+	uint32_t edit_color = edit_color_from_name(config_get(cfg, "edit.color"));
+	int32_t edit_width = edit_width_from_str(config_get(cfg, "edit.width"));
+	bool edit_dirty = false;
+
+	int rc = grabit_freeze_capture(&s, path, out_rect, a->edit,
+								   a->edit ? &edit_color : NULL,
+								   a->edit ? &edit_width : NULL,
+								   a->edit ? &edit_dirty : NULL);
 	grabit_wl_finish(&s);
+
+	if (a->edit && edit_dirty) persist_edit_choices(cfg, edit_color, edit_width);
 
 	if (rc != 0) {
 		unlink(path);
@@ -183,6 +243,7 @@ static char *capture_to_file(const struct args *a, struct config *cfg,
 		});
 		return NULL;
 	}
+
 	log_debug("captured to %s", path);
 	return path;
 }
@@ -203,21 +264,6 @@ static int run_upload(struct config *cfg, const struct args *a) {
 	} else {
 		path = capture_to_file(a, cfg, ACTION_UPLOAD, &is_temp, NULL);
 		if (!path) return 1;
-	}
-
-	if (a->edit && grabit_edit_file(cfg, path) != 0) {
-		log_info("edit cancelled; aborting");
-		notify_send(&(struct notify_opts){
-			.summary = "grabit: edit cancelled",
-			.body = "action aborted",
-			.force = true,
-		});
-		if (is_temp) {
-			unlink(path);
-			clear_tmpfile();
-		}
-		free(path);
-		return 1;
 	}
 
 	struct upload_result r = {0};
@@ -277,21 +323,6 @@ static int run_copy(struct config *cfg, const struct args *a) {
 		if (!path) return 1;
 	}
 
-	if (a->edit && grabit_edit_file(cfg, path) != 0) {
-		log_info("edit cancelled; aborting");
-		notify_send(&(struct notify_opts){
-			.summary = "grabit: edit cancelled",
-			.body = "action aborted",
-			.force = true,
-		});
-		if (is_temp) {
-			unlink(path);
-			clear_tmpfile();
-		}
-		free(path);
-		return 1;
-	}
-
 	int rc = clipboard_set_image_file(path);
 
 	if (rc == 0) {
@@ -325,21 +356,6 @@ static int run_output(struct config *cfg, const struct args *a) {
 	bool is_temp = false;
 	char *path = capture_to_file(a, cfg, ACTION_OUTPUT, &is_temp, NULL);
 	if (!path) return 1;
-
-	if (a->edit && grabit_edit_file(cfg, path) != 0) {
-		log_info("edit cancelled; aborting");
-		notify_send(&(struct notify_opts){
-			.summary = "grabit: edit cancelled",
-			.body = "action aborted",
-			.force = true,
-		});
-		if (is_temp) {
-			unlink(path);
-			clear_tmpfile();
-		}
-		free(path);
-		return 1;
-	}
 
 	puts(path);
 	if (isatty(STDOUT_FILENO)) {
@@ -477,21 +493,6 @@ static int run_pin(struct config *cfg, const struct args *a) {
 		path = capture_to_file(a, cfg, ACTION_PIN, &is_temp, &r);
 		if (!path) return 1;
 		have_rect = (r.w > 0 && r.h > 0);
-	}
-
-	if (a->edit && grabit_edit_file(cfg, path) != 0) {
-		log_info("edit cancelled; aborting");
-		notify_send(&(struct notify_opts){
-			.summary = "grabit: edit cancelled",
-			.body = "action aborted",
-			.force = true,
-		});
-		if (is_temp) {
-			unlink(path);
-			clear_tmpfile();
-		}
-		free(path);
-		return 1;
 	}
 
 	int rc = pin_spawn(cfg, path, have_rect ? &r : NULL);
