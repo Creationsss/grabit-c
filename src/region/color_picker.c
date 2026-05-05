@@ -220,7 +220,7 @@ static void render_input(cairo_t *cr, const struct ro_output *o, int32_t S) {
 	cairo_rectangle(cr, dix, diy, diw, dih);
 	cairo_fill(cr);
 	if (o->st->color_input_active) {
-		cairo_set_source_rgba(cr, 1.0, 0.55, 0.32, 1);
+		cairo_set_source_rgba(cr, GRABIT_ACCENT_R, GRABIT_ACCENT_G, GRABIT_ACCENT_B, 1);
 	} else {
 		cairo_set_source_rgba(cr, 1, 1, 1, 0.25);
 	}
@@ -264,7 +264,7 @@ static void render_input(cairo_t *cr, const struct ro_output *o, int32_t S) {
 
 	if (o->st->color_input_active) {
 		double cx = text_x + ext.x_advance;
-		cairo_set_source_rgba(cr, 1.0, 0.55, 0.32, 1);
+		cairo_set_source_rgba(cr, GRABIT_ACCENT_R, GRABIT_ACCENT_G, GRABIT_ACCENT_B, 1);
 		cairo_set_line_width(cr, 1.5 * S);
 		cairo_move_to(cr, cx, diy + 4.0 * S);
 		cairo_line_to(cr, cx, diy + dih - 4.0 * S);
@@ -280,7 +280,7 @@ static void render_eyedropper_btn(cairo_t *cr, const struct ro_output *o, int32_
 	double dew = (double)ew * S;
 	double deh = (double)eh * S;
 	if (o->st->eyedropper_mode) {
-		cairo_set_source_rgba(cr, 1.0, 0.55, 0.32, 0.92);
+		cairo_set_source_rgba(cr, GRABIT_ACCENT_R, GRABIT_ACCENT_G, GRABIT_ACCENT_B, 0.92);
 	} else {
 		cairo_set_source_rgba(cr, 0.18, 0.18, 0.18, 1);
 	}

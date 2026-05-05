@@ -17,7 +17,6 @@ int pool_init(struct buf_pool *p, size_t n, size_t buf_size) {
 	p->n = n;
 	p->buf_size = buf_size;
 	pthread_mutex_init(&p->mu, NULL);
-	pthread_cond_init(&p->cv, NULL);
 	for (size_t i = 0; i < n; i++) {
 		p->slots[i] = malloc(buf_size);
 		if (!p->slots[i]) {
@@ -31,24 +30,8 @@ int pool_init(struct buf_pool *p, size_t n, size_t buf_size) {
 void pool_destroy(struct buf_pool *p) {
 	for (size_t i = 0; i < p->n; i++)
 		free(p->slots[i]);
-	pthread_cond_destroy(&p->cv);
 	pthread_mutex_destroy(&p->mu);
 	memset(p, 0, sizeof *p);
-}
-
-void *pool_acquire(struct buf_pool *p) {
-	pthread_mutex_lock(&p->mu);
-	for (;;) {
-		for (size_t i = 0; i < p->n; i++) {
-			if (!p->busy[i]) {
-				p->busy[i] = true;
-				void *ret = p->slots[i];
-				pthread_mutex_unlock(&p->mu);
-				return ret;
-			}
-		}
-		pthread_cond_wait(&p->cv, &p->mu);
-	}
 }
 
 void *pool_try_acquire(struct buf_pool *p) {
@@ -70,7 +53,6 @@ void pool_release(struct buf_pool *p, void *buf) {
 	for (size_t i = 0; i < p->n; i++) {
 		if (p->slots[i] == buf) {
 			p->busy[i] = false;
-			pthread_cond_signal(&p->cv);
 			break;
 		}
 	}

@@ -15,11 +15,12 @@
 #define TB_ROW_GAP 4
 #define TB_SLIDER_W 110
 
+#define GRABIT_ACCENT_R 1.0
+#define GRABIT_ACCENT_G 0.55
+#define GRABIT_ACCENT_B 0.32
+
 extern const uint32_t TOOLBAR_COLORS[6];
 
-int toolbar_row_of(enum tb_action act);
-int32_t toolbar_btn_w(enum tb_action act);
-int32_t toolbar_btn_h(enum tb_action act);
 void toolbar_btn_rect_local(enum tb_action act, int32_t tw,
 							int32_t *out_x, int32_t *out_y,
 							int32_t *out_w, int32_t *out_h);

@@ -27,11 +27,9 @@ static void output_geometry(void *data, struct wl_output *wo, int32_t x, int32_t
 	(void)pw;
 	(void)ph;
 	(void)subpixel;
+	(void)make;
+	(void)model;
 	struct grabit_output *o = data;
-	free(o->make);
-	free(o->model);
-	o->make = make ? strdup(make) : NULL;
-	o->model = model ? strdup(model) : NULL;
 	o->x = x;
 	o->y = y;
 	o->transform = transform;
@@ -341,8 +339,6 @@ void grabit_wl_finish(struct grabit_wl_state *s) {
 		if (o->xdg_output) zxdg_output_v1_destroy(o->xdg_output);
 		if (o->wl_output) wl_output_destroy(o->wl_output);
 		free(o->name);
-		free(o->make);
-		free(o->model);
 		free(o);
 	}
 	free(s->outputs);
@@ -365,15 +361,6 @@ void grabit_wl_finish(struct grabit_wl_state *s) {
 
 struct grabit_output *grabit_wl_primary_output(struct grabit_wl_state *s) {
 	return s->n_outputs > 0 ? s->outputs[0] : NULL;
-}
-
-struct grabit_output *grabit_wl_output_by_name(struct grabit_wl_state *s, const char *name) {
-	if (!name) return NULL;
-	for (size_t i = 0; i < s->n_outputs; i++) {
-		if (s->outputs[i]->name && strcmp(s->outputs[i]->name, name) == 0)
-			return s->outputs[i];
-	}
-	return NULL;
 }
 
 struct grabit_output *grabit_wl_output_at(struct grabit_wl_state *s, int32_t x, int32_t y) {
@@ -401,9 +388,9 @@ bool grabit_output_rect_intersect(const struct grabit_output *o, const struct re
 	int32_t iw = rx - lx;
 	int32_t ih = ry - ly;
 	if (iw <= 0 || ih <= 0) return false;
-	*out_x = lx;
-	*out_y = ly;
-	*out_w = iw;
-	*out_h = ih;
+	if (out_x) *out_x = lx;
+	if (out_y) *out_y = ly;
+	if (out_w) *out_w = iw;
+	if (out_h) *out_h = ih;
 	return true;
 }

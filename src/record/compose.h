@@ -18,6 +18,8 @@ struct rec_slice {
 	int32_t dst_x, dst_y, dst_w, dst_h;
 };
 
+struct sc_pool;
+
 struct rec_layout {
 	struct rec_slice *slices;
 	size_t n;
@@ -29,6 +31,8 @@ struct rec_layout {
 	size_t slice_scratch_size;
 	int32_t slice_scratch_w;
 	int32_t slice_scratch_h;
+
+	struct sc_pool *slice_caches;
 };
 
 int rec_layout_build(struct grabit_wl_state *s, struct rect r, struct rec_layout *out);

@@ -18,6 +18,8 @@ struct rect {
 	int32_t h;
 };
 
+#define ANNO_DEFAULT_FONT 18
+
 enum tool_kind {
 	TOOL_PEN = 0,
 	TOOL_RECT,

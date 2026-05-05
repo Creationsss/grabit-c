@@ -22,12 +22,7 @@ int grabit_ocr_check(const char *bin) {
 	pid_t pid = fork();
 	if (pid < 0) return -1;
 	if (pid == 0) {
-		int devnull = open("/dev/null", O_WRONLY);
-		if (devnull >= 0) {
-			dup2(devnull, STDOUT_FILENO);
-			dup2(devnull, STDERR_FILENO);
-			if (devnull > STDERR_FILENO) close(devnull);
-		}
+		grabit_redirect_stdio_devnull();
 		char *argv[] = {(char *)bin, (char *)"--version", NULL};
 		execvp(bin, argv);
 		_exit(errno == ENOENT ? 127 : 126);

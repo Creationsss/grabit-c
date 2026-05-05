@@ -34,15 +34,7 @@ int pin_render_alloc_buffer(struct pin_state *st) {
 }
 
 void pin_render_free_buffer(struct pin_state *st) {
-	struct grabit_shm_buf b = {
-		.buffer = st->buffer,
-		.map = st->buf_data,
-		.size = st->buf_size,
-	};
-	grabit_shm_buf_destroy(&b);
-	st->buffer = NULL;
-	st->buf_data = NULL;
-	st->buf_size = 0;
+	grabit_shm_release(&st->buffer, &st->buf_data, &st->buf_size);
 }
 
 static void draw_close_button(cairo_t *cr, int32_t width) {

@@ -193,7 +193,7 @@ void annotation_paint(cairo_t *cr, const struct annotation *a, double scale) {
 	}
 	case TOOL_TEXT: {
 		if (!a->text || !a->text[0]) break;
-		double font_px = (a->font_size > 0 ? a->font_size : 18) * scale;
+		double font_px = (a->font_size > 0 ? a->font_size : ANNO_DEFAULT_FONT) * scale;
 		cairo_select_font_face(cr, "sans-serif",
 							   CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
 		cairo_set_font_size(cr, font_px);

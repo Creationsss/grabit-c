@@ -78,7 +78,7 @@ static void paint_slider(cairo_t *cr, const struct ro_state *st, int32_t S,
 	double frac = (double)(w - WIDTH_MIN) / (double)(WIDTH_MAX - WIDTH_MIN);
 	double kx = tk_x0 + frac * (tk_x1 - tk_x0);
 	double kr = ((double)w * 0.45 + 3.0) * S;
-	cairo_set_source_rgba(cr, 1.0, 0.55, 0.32, 1);
+	cairo_set_source_rgba(cr, GRABIT_ACCENT_R, GRABIT_ACCENT_G, GRABIT_ACCENT_B, 1);
 	cairo_arc(cr, kx, cyi, kr, 0, 2.0 * M_PI);
 	cairo_fill(cr);
 	cairo_set_source_rgba(cr, 1, 1, 1, 0.55);

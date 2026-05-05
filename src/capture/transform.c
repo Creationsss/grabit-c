@@ -5,7 +5,6 @@
 
 #include "log.h"
 
-#include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -17,45 +16,46 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-static cairo_format_t fmt_for(uint32_t f) {
-	if (f == WL_SHM_FORMAT_ARGB8888) return CAIRO_FORMAT_ARGB32;
+int grabit_cairo_format_for_shm(uint32_t shm_fmt) {
+	if (shm_fmt == WL_SHM_FORMAT_ARGB8888) return CAIRO_FORMAT_ARGB32;
 	return CAIRO_FORMAT_RGB24;
 }
 
-static int transform_swaps(int32_t t) {
-	return t == WL_OUTPUT_TRANSFORM_90 ||
-		   t == WL_OUTPUT_TRANSFORM_270 ||
-		   t == WL_OUTPUT_TRANSFORM_FLIPPED_90 ||
-		   t == WL_OUTPUT_TRANSFORM_FLIPPED_270;
+bool grabit_wl_transform_swaps(int32_t transform) {
+	return transform == WL_OUTPUT_TRANSFORM_90 ||
+		   transform == WL_OUTPUT_TRANSFORM_270 ||
+		   transform == WL_OUTPUT_TRANSFORM_FLIPPED_90 ||
+		   transform == WL_OUTPUT_TRANSFORM_FLIPPED_270;
 }
 
-static void apply_inverse(cairo_t *cr, int32_t t, int32_t sw, int32_t sh) {
-	switch (t) {
+void grabit_wl_transform_apply_inverse(cairo_t *cr, int32_t transform,
+									   int32_t src_w, int32_t src_h) {
+	switch (transform) {
 	case WL_OUTPUT_TRANSFORM_NORMAL:
 		break;
 	case WL_OUTPUT_TRANSFORM_90:
-		cairo_translate(cr, sh, 0);
+		cairo_translate(cr, src_h, 0);
 		cairo_rotate(cr, M_PI / 2);
 		break;
 	case WL_OUTPUT_TRANSFORM_180:
-		cairo_translate(cr, sw, sh);
+		cairo_translate(cr, src_w, src_h);
 		cairo_rotate(cr, M_PI);
 		break;
 	case WL_OUTPUT_TRANSFORM_270:
-		cairo_translate(cr, 0, sw);
+		cairo_translate(cr, 0, src_w);
 		cairo_rotate(cr, -M_PI / 2);
 		break;
 	case WL_OUTPUT_TRANSFORM_FLIPPED:
-		cairo_translate(cr, sw, 0);
+		cairo_translate(cr, src_w, 0);
 		cairo_scale(cr, -1, 1);
 		break;
 	case WL_OUTPUT_TRANSFORM_FLIPPED_90:
-		cairo_translate(cr, sh, sw);
+		cairo_translate(cr, src_h, src_w);
 		cairo_scale(cr, -1, 1);
 		cairo_rotate(cr, -M_PI / 2);
 		break;
 	case WL_OUTPUT_TRANSFORM_FLIPPED_180:
-		cairo_translate(cr, 0, sh);
+		cairo_translate(cr, 0, src_h);
 		cairo_scale(cr, 1, -1);
 		break;
 	case WL_OUTPUT_TRANSFORM_FLIPPED_270:
@@ -69,10 +69,10 @@ int image_apply_transform(struct image *img, int32_t transform) {
 	if (!img || !img->bytes) return -1;
 	if (transform == WL_OUTPUT_TRANSFORM_NORMAL) return 0;
 
-	int32_t new_w = transform_swaps(transform) ? img->height : img->width;
-	int32_t new_h = transform_swaps(transform) ? img->width : img->height;
+	int32_t new_w = grabit_wl_transform_swaps(transform) ? img->height : img->width;
+	int32_t new_h = grabit_wl_transform_swaps(transform) ? img->width : img->height;
 
-	cairo_format_t fmt = fmt_for(img->format);
+	cairo_format_t fmt = grabit_cairo_format_for_shm(img->format);
 	int32_t new_stride = cairo_format_stride_for_width(fmt, new_w);
 	if (new_stride <= 0) return -1;
 
@@ -98,7 +98,7 @@ int image_apply_transform(struct image *img, int32_t transform) {
 	}
 
 	cairo_t *cr = cairo_create(dst);
-	apply_inverse(cr, transform, img->width, img->height);
+	grabit_wl_transform_apply_inverse(cr, transform, img->width, img->height);
 	cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
 	cairo_set_source_surface(cr, src, 0, 0);
 	cairo_paint(cr);

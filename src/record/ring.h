@@ -19,12 +19,10 @@ struct buf_pool {
 	size_t n;
 	size_t buf_size;
 	pthread_mutex_t mu;
-	pthread_cond_t cv;
 };
 
 int pool_init(struct buf_pool *p, size_t n, size_t buf_size);
 void pool_destroy(struct buf_pool *p);
-void *pool_acquire(struct buf_pool *p);
 void *pool_try_acquire(struct buf_pool *p);
 void pool_release(struct buf_pool *p, void *buf);
 

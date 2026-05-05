@@ -7,16 +7,14 @@
 #include "capture/capture.h"
 #include "log.h"
 #include "region/annotate.h"
+#include "region/wlr_input_state.h"
 #include "util.h"
 #include "wl.h"
 
-#include <errno.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-#include <sys/mman.h>
-#include <unistd.h>
 
 #include <cairo/cairo.h>
 #include <wayland-client.h>
@@ -105,15 +103,7 @@ void region_render_free_buffer(struct ro_output *o) {
 		cairo_surface_destroy(o->cairo_dst);
 		o->cairo_dst = NULL;
 	}
-	struct grabit_shm_buf b = {
-		.buffer = o->buffer,
-		.map = o->buf_data,
-		.size = o->buf_size,
-	};
-	grabit_shm_buf_destroy(&b);
-	o->buffer = NULL;
-	o->buf_data = NULL;
-	o->buf_size = 0;
+	grabit_shm_release(&o->buffer, &o->buf_data, &o->buf_size);
 }
 
 static void output_redraw(struct ro_output *o);
@@ -198,27 +188,8 @@ static void output_redraw(struct ro_output *o) {
 		}
 		if (o->st->drawing) {
 			int32_t px1 = o->st->cursor_x, py1 = o->st->cursor_y;
-			if (o->st->shift_held && o->st->current_tool != TOOL_PEN) {
-				if (o->st->current_tool == TOOL_RECT ||
-					o->st->current_tool == TOOL_ELLIPSE ||
-					o->st->current_tool == TOOL_BLUR) {
-					int32_t dx = px1 - o->st->draw_x0;
-					int32_t dy = py1 - o->st->draw_y0;
-					int32_t adx = dx < 0 ? -dx : dx;
-					int32_t ady = dy < 0 ? -dy : dy;
-					int32_t side = adx > ady ? adx : ady;
-					px1 = o->st->draw_x0 + (dx < 0 ? -side : side);
-					py1 = o->st->draw_y0 + (dy < 0 ? -side : side);
-				} else if (o->st->current_tool == TOOL_ARROW) {
-					double angle = atan2((double)(py1 - o->st->draw_y0),
-										 (double)(px1 - o->st->draw_x0));
-					double snap = round(angle / (M_PI / 4.0)) * (M_PI / 4.0);
-					double dx = px1 - o->st->draw_x0, dy = py1 - o->st->draw_y0;
-					double len = sqrt(dx * dx + dy * dy);
-					px1 = o->st->draw_x0 + (int32_t)(len * cos(snap));
-					py1 = o->st->draw_y0 + (int32_t)(len * sin(snap));
-				}
-			}
+			region_apply_shape_snap(o->st->current_tool, o->st->shift_held,
+									o->st->draw_x0, o->st->draw_y0, &px1, &py1);
 			struct annotation preview = {
 				.tool = o->st->current_tool,
 				.x0 = o->st->draw_x0,
@@ -227,7 +198,7 @@ static void output_redraw(struct ro_output *o) {
 				.y1 = py1,
 				.color = o->st->current_color,
 				.width = o->st->current_width,
-				.font_size = 18,
+				.font_size = ANNO_DEFAULT_FONT,
 				.points = o->st->pen_points,
 				.n_points = o->st->pen_n,
 			};
@@ -236,7 +207,7 @@ static void output_redraw(struct ro_output *o) {
 		cairo_pop_group_to_source(cr);
 		cairo_paint(cr);
 		if (o->st->text_input_active) {
-			double font = 18.0;
+			double font = ANNO_DEFAULT_FONT;
 			cairo_select_font_face(cr, "sans-serif",
 								   CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
 			cairo_set_font_size(cr, font);
@@ -257,7 +228,7 @@ static void output_redraw(struct ro_output *o) {
 					.x0 = o->st->text_x,
 					.y0 = o->st->text_y,
 					.color = o->st->current_color,
-					.font_size = 18,
+					.font_size = ANNO_DEFAULT_FONT,
 					.text = (char *)o->st->text_buf,
 				};
 				annotation_paint(cr, &preview, 1.0);

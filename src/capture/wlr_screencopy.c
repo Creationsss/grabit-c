@@ -38,12 +38,22 @@ struct sc_state {
 	uint32_t format;
 	bool y_invert;
 	bool swap_rb;
+	bool buffer_owned;
+
+	struct sc_pool *pool;
 
 	uint32_t advertised[16];
 	size_t n_advertised;
 
 	int status;
 };
+
+void sc_pool_destroy(struct sc_pool *p) {
+	if (!p) return;
+	if (p->buffer) wl_buffer_destroy(p->buffer);
+	if (p->map) munmap(p->map, p->map_size);
+	memset(p, 0, sizeof *p);
+}
 
 static const char *shm_format_name(uint32_t f) {
 	switch (f) {
@@ -115,6 +125,16 @@ static void sc_buffer(void *data, struct zwlr_screencopy_frame_v1 *f,
 	c->height = (int32_t)h;
 	c->stride = (int32_t)stride;
 
+	if (c->pool && c->pool->buffer &&
+		c->pool->width == (int32_t)w && c->pool->height == (int32_t)h &&
+		c->pool->stride == (int32_t)stride && c->pool->format == use_format) {
+		c->buffer = c->pool->buffer;
+		c->map = c->pool->map;
+		c->map_size = c->pool->map_size;
+		c->buffer_owned = false;
+		return;
+	}
+
 	size_t size = (size_t)stride * h;
 	int fd = grabit_shm_anon("grabit-screencopy", size);
 	if (fd < 0) {
@@ -132,11 +152,26 @@ static void sc_buffer(void *data, struct zwlr_screencopy_frame_v1 *f,
 	}
 	c->map_size = size;
 
-	struct wl_shm_pool *pool = wl_shm_create_pool(c->wls->shm, fd, (int32_t)size);
-	c->buffer = wl_shm_pool_create_buffer(pool, 0, (int32_t)w, (int32_t)h,
+	struct wl_shm_pool *shm_pool = wl_shm_create_pool(c->wls->shm, fd, (int32_t)size);
+	c->buffer = wl_shm_pool_create_buffer(shm_pool, 0, (int32_t)w, (int32_t)h,
 										  (int32_t)stride, use_format);
-	wl_shm_pool_destroy(pool);
+	wl_shm_pool_destroy(shm_pool);
 	close(fd);
+
+	if (c->pool) {
+		if (c->pool->buffer) wl_buffer_destroy(c->pool->buffer);
+		if (c->pool->map) munmap(c->pool->map, c->pool->map_size);
+		c->pool->buffer = c->buffer;
+		c->pool->map = c->map;
+		c->pool->map_size = c->map_size;
+		c->pool->width = c->width;
+		c->pool->height = c->height;
+		c->pool->stride = c->stride;
+		c->pool->format = c->format;
+		c->buffer_owned = false;
+	} else {
+		c->buffer_owned = true;
+	}
 }
 
 static void sc_linux_dmabuf(void *data, struct zwlr_screencopy_frame_v1 *f,
@@ -245,8 +280,10 @@ static void copy_capture(const struct sc_state *c, void *dst, int32_t dst_stride
 }
 
 static void cleanup_capture(struct sc_state *c) {
-	if (c->map) munmap(c->map, c->map_size);
-	if (c->buffer) wl_buffer_destroy(c->buffer);
+	if (c->buffer_owned) {
+		if (c->map) munmap(c->map, c->map_size);
+		if (c->buffer) wl_buffer_destroy(c->buffer);
+	}
 	if (c->frame) zwlr_screencopy_frame_v1_destroy(c->frame);
 }
 
@@ -256,7 +293,7 @@ int capture_output_full(struct grabit_wl_state *s, struct grabit_output *o,
 	if (o->dead || !o->wl_output) return -1;
 	memset(out, 0, sizeof *out);
 
-	struct sc_state c = {.wls = s};
+	struct sc_state c = {.wls = s, .buffer_owned = true};
 	c.frame = zwlr_screencopy_manager_v1_capture_output(
 		s->screencopy_manager, 0, o->wl_output);
 	if (!c.frame) {
@@ -284,53 +321,17 @@ int capture_output_full(struct grabit_wl_state *s, struct grabit_output *o,
 	return rc;
 }
 
-int capture_output_region(struct grabit_wl_state *s, struct grabit_output *o,
-						  int32_t x, int32_t y, int32_t w, int32_t h,
-						  bool overlay_cursor,
-						  struct image *out) {
-	if (!s || !s->screencopy_manager || !o || !out) return -1;
-	if (w <= 0 || h <= 0) return -1;
-	if (o->dead || !o->wl_output) return -1;
-	memset(out, 0, sizeof *out);
-
-	struct sc_state c = {.wls = s};
-	c.frame = zwlr_screencopy_manager_v1_capture_output_region(
-		s->screencopy_manager, overlay_cursor ? 1 : 0, o->wl_output, x, y, w, h);
-	if (!c.frame) {
-		log_error("zwlr_screencopy_manager_v1_capture_output_region: NULL");
-		return -1;
-	}
-	zwlr_screencopy_frame_v1_add_listener(c.frame, &sc_listener, &c);
-
-	int rc = -1;
-	if (dispatch_capture(s, &c) == 0) {
-		out->width = c.width;
-		out->height = c.height;
-		out->stride = c.stride;
-		out->format = resolved_format(&c);
-		out->size = c.map_size;
-		out->bytes = malloc(c.map_size);
-		if (out->bytes) {
-			copy_capture(&c, out->bytes, c.stride);
-			rc = 0;
-		}
-	}
-
-	cleanup_capture(&c);
-	if (rc != 0) image_free(out);
-	return rc;
-}
-
 int capture_output_region_into(struct grabit_wl_state *s, struct grabit_output *o,
 							   int32_t x, int32_t y, int32_t w, int32_t h,
 							   bool overlay_cursor,
 							   void *dst, int32_t dst_stride, int32_t dst_h,
-							   uint32_t *out_format) {
+							   uint32_t *out_format,
+							   struct sc_pool *cache) {
 	if (!s || !s->screencopy_manager || !o || !dst) return -1;
 	if (w <= 0 || h <= 0 || dst_stride <= 0 || dst_h <= 0) return -1;
 	if (o->dead || !o->wl_output) return -1;
 
-	struct sc_state c = {.wls = s};
+	struct sc_state c = {.wls = s, .pool = cache, .buffer_owned = true};
 	c.frame = zwlr_screencopy_manager_v1_capture_output_region(
 		s->screencopy_manager, overlay_cursor ? 1 : 0, o->wl_output, x, y, w, h);
 	if (!c.frame) {

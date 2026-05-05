@@ -8,6 +8,7 @@
 #include "util.h"
 
 #include <ctype.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -23,7 +24,12 @@ static int read_random(unsigned char *out, size_t n) {
 	size_t off = 0;
 	while (off < n) {
 		ssize_t r = read(fd, out + off, n - off);
-		if (r <= 0) {
+		if (r < 0) {
+			if (errno == EINTR) continue;
+			close(fd);
+			return -1;
+		}
+		if (r == 0) {
 			close(fd);
 			return -1;
 		}

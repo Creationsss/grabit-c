@@ -35,6 +35,9 @@ int grabit_shm_argb_buf(struct wl_shm *shm, const char *tag,
 						int32_t pixel_w, int32_t pixel_h,
 						struct grabit_shm_buf *out);
 void grabit_shm_buf_destroy(struct grabit_shm_buf *b);
+void grabit_shm_release(struct wl_buffer **buf, void **map, size_t *size);
+
+void grabit_redirect_stdio_devnull(void);
 
 struct grabit_buf {
 	char *data;

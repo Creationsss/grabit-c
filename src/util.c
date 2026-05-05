@@ -9,6 +9,7 @@
 #include <wayland-client.h>
 
 #include <errno.h>
+#include <fcntl.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -171,6 +172,27 @@ void grabit_shm_buf_destroy(struct grabit_shm_buf *b) {
 	if (b->buffer) wl_buffer_destroy(b->buffer);
 	if (b->map) munmap(b->map, b->size);
 	memset(b, 0, sizeof *b);
+}
+
+void grabit_shm_release(struct wl_buffer **buf, void **map, size_t *size) {
+	if (buf && *buf) {
+		wl_buffer_destroy(*buf);
+		*buf = NULL;
+	}
+	if (map && *map && size) {
+		munmap(*map, *size);
+		*map = NULL;
+		*size = 0;
+	}
+}
+
+void grabit_redirect_stdio_devnull(void) {
+	int fd = open("/dev/null", O_RDWR | O_CLOEXEC);
+	if (fd < 0) return;
+	dup2(fd, STDIN_FILENO);
+	dup2(fd, STDOUT_FILENO);
+	dup2(fd, STDERR_FILENO);
+	if (fd > STDERR_FILENO) close(fd);
 }
 
 int grabit_waitpid_intr(pid_t pid, int *status) {

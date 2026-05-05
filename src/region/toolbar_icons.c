@@ -211,7 +211,7 @@ void toolbar_color_current(cairo_t *cr, double cx, double cy, double s,
 	cairo_fill_preserve(cr);
 
 	if (active) {
-		cairo_set_source_rgba(cr, 1.0, 0.55, 0.32, 1);
+		cairo_set_source_rgba(cr, GRABIT_ACCENT_R, GRABIT_ACCENT_G, GRABIT_ACCENT_B, 1);
 		cairo_set_line_width(cr, 2.4 * (s / 24.0));
 	} else {
 		cairo_set_source_rgba(cr, 1, 1, 1, 0.85);

@@ -42,4 +42,7 @@ void region_pen_append(struct ro_state *st, int32_t x, int32_t y);
 void region_commit_drawing(struct ro_state *st);
 void region_commit_text(struct ro_state *st);
 
+void region_apply_shape_snap(int tool, bool shift, int32_t x0, int32_t y0,
+							 int32_t *x1, int32_t *y1);
+
 #endif

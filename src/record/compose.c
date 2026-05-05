@@ -8,16 +8,11 @@
 #include "region/region.h"
 #include "wl.h"
 
-#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include <cairo/cairo.h>
 #include <wayland-client.h>
-
-#ifndef M_PI
-#define M_PI 3.14159265358979323846
-#endif
 
 int rec_layout_build(struct grabit_wl_state *s, struct rect r, struct rec_layout *out) {
 	memset(out, 0, sizeof *out);
@@ -45,6 +40,12 @@ int rec_layout_build(struct grabit_wl_state *s, struct rect r, struct rec_layout
 
 	out->slices = calloc(n_overlap, sizeof *out->slices);
 	if (!out->slices) return -1;
+	out->slice_caches = calloc(n_overlap, sizeof *out->slice_caches);
+	if (!out->slice_caches) {
+		free(out->slices);
+		out->slices = NULL;
+		return -1;
+	}
 
 	size_t k = 0;
 	for (size_t i = 0; i < s->n_outputs; i++) {
@@ -70,60 +71,11 @@ int rec_layout_build(struct grabit_wl_state *s, struct rect r, struct rec_layout
 	return 0;
 }
 
-static cairo_format_t image_cairo_format(uint32_t fmt) {
-	if (fmt == WL_SHM_FORMAT_ARGB8888) return CAIRO_FORMAT_ARGB32;
-	return CAIRO_FORMAT_RGB24;
-}
-
 bool rec_layout_is_direct(const struct rec_layout *layout) {
 	if (!layout || layout->n != 1) return false;
 	const struct rec_slice *sl = &layout->slices[0];
 	if (sl->out->transform != WL_OUTPUT_TRANSFORM_NORMAL) return false;
 	return sl->dst_x == 0 && sl->dst_y == 0 && sl->dst_w == layout->dst_w && sl->dst_h == layout->dst_h;
-}
-
-static bool transform_swaps_dims(int32_t t) {
-	return t == WL_OUTPUT_TRANSFORM_90 ||
-		   t == WL_OUTPUT_TRANSFORM_270 ||
-		   t == WL_OUTPUT_TRANSFORM_FLIPPED_90 ||
-		   t == WL_OUTPUT_TRANSFORM_FLIPPED_270;
-}
-
-static void apply_inverse_transform(cairo_t *cr, int32_t transform,
-									int32_t src_w, int32_t src_h) {
-	switch (transform) {
-	case WL_OUTPUT_TRANSFORM_NORMAL:
-		break;
-	case WL_OUTPUT_TRANSFORM_90:
-		cairo_translate(cr, src_h, 0);
-		cairo_rotate(cr, M_PI / 2);
-		break;
-	case WL_OUTPUT_TRANSFORM_180:
-		cairo_translate(cr, src_w, src_h);
-		cairo_rotate(cr, M_PI);
-		break;
-	case WL_OUTPUT_TRANSFORM_270:
-		cairo_translate(cr, 0, src_w);
-		cairo_rotate(cr, -M_PI / 2);
-		break;
-	case WL_OUTPUT_TRANSFORM_FLIPPED:
-		cairo_translate(cr, src_w, 0);
-		cairo_scale(cr, -1, 1);
-		break;
-	case WL_OUTPUT_TRANSFORM_FLIPPED_90:
-		cairo_translate(cr, src_h, src_w);
-		cairo_scale(cr, -1, 1);
-		cairo_rotate(cr, -M_PI / 2);
-		break;
-	case WL_OUTPUT_TRANSFORM_FLIPPED_180:
-		cairo_translate(cr, 0, src_h);
-		cairo_scale(cr, 1, -1);
-		break;
-	case WL_OUTPUT_TRANSFORM_FLIPPED_270:
-		cairo_rotate(cr, M_PI / 2);
-		cairo_scale(cr, 1, -1);
-		break;
-	}
 }
 
 int rec_layout_capture_direct_into(struct grabit_wl_state *s, const struct rec_layout *layout,
@@ -135,7 +87,8 @@ int rec_layout_capture_direct_into(struct grabit_wl_state *s, const struct rec_l
 	if (sl->src_w != layout->dst_w || sl->src_h != layout->dst_h) return -1;
 	return capture_output_region_into(s, sl->out,
 									  sl->src_x, sl->src_y, sl->src_w, sl->src_h,
-									  cursor, dst, dst_stride, dst_h, NULL);
+									  cursor, dst, dst_stride, dst_h, NULL,
+									  &layout->slice_caches[0]);
 }
 
 static int ensure_slice_scratch(struct rec_layout *layout, int32_t w, int32_t h) {
@@ -191,12 +144,13 @@ int rec_layout_capture_compose(struct grabit_wl_state *s, struct rec_layout *lay
 		if (capture_output_region_into(s, sl->out,
 									   sl->src_x, sl->src_y, sl->src_w, sl->src_h,
 									   cursor, layout->slice_scratch,
-									   scratch_stride, sl->src_h, &fmt_raw) != 0) {
+									   scratch_stride, sl->src_h, &fmt_raw,
+									   &layout->slice_caches[i]) != 0) {
 			continue;
 		}
 		captured++;
 
-		cairo_format_t fmt = image_cairo_format(fmt_raw);
+		cairo_format_t fmt = grabit_cairo_format_for_shm(fmt_raw);
 		cairo_surface_t *src = cairo_image_surface_create_for_data(
 			layout->slice_scratch, fmt, sl->src_w, sl->src_h, scratch_stride);
 		if (cairo_surface_status(src) != CAIRO_STATUS_SUCCESS) {
@@ -204,8 +158,8 @@ int rec_layout_capture_compose(struct grabit_wl_state *s, struct rec_layout *lay
 			continue;
 		}
 
-		int32_t visible_w = transform_swaps_dims(sl->out->transform) ? sl->src_h : sl->src_w;
-		int32_t visible_h = transform_swaps_dims(sl->out->transform) ? sl->src_w : sl->src_h;
+		int32_t visible_w = grabit_wl_transform_swaps(sl->out->transform) ? sl->src_h : sl->src_w;
+		int32_t visible_h = grabit_wl_transform_swaps(sl->out->transform) ? sl->src_w : sl->src_h;
 		bool needs_scale = visible_w != sl->dst_w || visible_h != sl->dst_h;
 		double sx = visible_w > 0 ? (double)sl->dst_w / (double)visible_w : 1.0;
 		double sy = visible_h > 0 ? (double)sl->dst_h / (double)visible_h : 1.0;
@@ -215,7 +169,7 @@ int rec_layout_capture_compose(struct grabit_wl_state *s, struct rec_layout *lay
 		cairo_clip(cr);
 		cairo_translate(cr, sl->dst_x, sl->dst_y);
 		if (needs_scale) cairo_scale(cr, sx, sy);
-		apply_inverse_transform(cr, sl->out->transform, sl->src_w, sl->src_h);
+		grabit_wl_transform_apply_inverse(cr, sl->out->transform, sl->src_w, sl->src_h);
 		cairo_set_source_surface(cr, src, 0, 0);
 		cairo_pattern_set_filter(cairo_get_source(cr),
 								 needs_scale ? CAIRO_FILTER_GOOD : CAIRO_FILTER_NEAREST);
@@ -236,6 +190,10 @@ int rec_layout_capture_compose(struct grabit_wl_state *s, struct rec_layout *lay
 
 void rec_layout_free(struct rec_layout *layout) {
 	if (!layout) return;
+	if (layout->slice_caches) {
+		for (size_t i = 0; i < layout->n; i++) sc_pool_destroy(&layout->slice_caches[i]);
+		free(layout->slice_caches);
+	}
 	free(layout->slices);
 	free(layout->slice_scratch);
 	memset(layout, 0, sizeof *layout);

@@ -18,19 +18,19 @@ const uint32_t TOOLBAR_COLORS[6] = {
 	0xffffffu,
 };
 
-int toolbar_row_of(enum tb_action act) {
+static int toolbar_row_of(enum tb_action act) {
 	if (act >= TB_COLOR_RED && act <= TB_WIDTH_SLIDER) return 1;
 	return 0;
 }
 
-int32_t toolbar_btn_w(enum tb_action act) {
+static int32_t toolbar_btn_w(enum tb_action act) {
 	if (act >= TB_COLOR_RED && act <= TB_COLOR_WHITE) return 26;
 	if (act == TB_COLOR_CURRENT) return 28;
 	if (act == TB_WIDTH_SLIDER) return TB_SLIDER_W;
 	return TB_BTN_W;
 }
 
-int32_t toolbar_btn_h(enum tb_action act) {
+static int32_t toolbar_btn_h(enum tb_action act) {
 	return toolbar_row_of(act) == 1 ? TB_BTN_H_OPT : TB_BTN_H;
 }
 

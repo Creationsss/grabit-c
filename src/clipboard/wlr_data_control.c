@@ -43,6 +43,7 @@ static void source_send(void *data, struct zwlr_data_control_source_v1 *src,
 			if (errno == EINTR) continue;
 			break;
 		}
+		if (w == 0) break;
 		p += w;
 		left -= (size_t)w;
 	}

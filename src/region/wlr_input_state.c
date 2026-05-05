@@ -13,7 +13,6 @@
 #include <string.h>
 #include <sys/timerfd.h>
 
-#define ANNO_DEFAULT_FONT 18
 #define UNDO_HOLD_DELAY_MS 600
 #define UNDO_HOLD_REPEAT_MS 80
 #define TOOLTIP_DELAY_MS 1000
@@ -239,6 +238,26 @@ void region_pen_append(struct ro_state *st, int32_t x, int32_t y) {
 	st->pen_n++;
 }
 
+void region_apply_shape_snap(int tool, bool shift, int32_t x0, int32_t y0,
+							 int32_t *x1, int32_t *y1) {
+	if (!shift) return;
+	if (tool == TOOL_RECT || tool == TOOL_ELLIPSE || tool == TOOL_BLUR) {
+		int32_t dx = *x1 - x0, dy = *y1 - y0;
+		int32_t adx = dx < 0 ? -dx : dx;
+		int32_t ady = dy < 0 ? -dy : dy;
+		int32_t side = adx > ady ? adx : ady;
+		*x1 = x0 + (dx < 0 ? -side : side);
+		*y1 = y0 + (dy < 0 ? -side : side);
+	} else if (tool == TOOL_ARROW) {
+		double angle = atan2((double)(*y1 - y0), (double)(*x1 - x0));
+		double snap = round(angle / (M_PI / 4.0)) * (M_PI / 4.0);
+		double dx = *x1 - x0, dy = *y1 - y0;
+		double len = sqrt(dx * dx + dy * dy);
+		*x1 = x0 + (int32_t)(len * cos(snap));
+		*y1 = y0 + (int32_t)(len * sin(snap));
+	}
+}
+
 void region_commit_drawing(struct ro_state *st) {
 	struct annotation a = {0};
 	a.tool = st->current_tool;
@@ -256,31 +275,12 @@ void region_commit_drawing(struct ro_state *st) {
 		st->pen_points = NULL;
 		st->pen_n = st->pen_cap = 0;
 	} else {
-		int32_t x0 = st->draw_x0;
-		int32_t y0 = st->draw_y0;
 		int32_t x1 = st->cursor_x;
 		int32_t y1 = st->cursor_y;
-		if (st->shift_held) {
-			if (st->current_tool == TOOL_RECT ||
-				st->current_tool == TOOL_ELLIPSE ||
-				st->current_tool == TOOL_BLUR) {
-				int32_t dx = x1 - x0, dy = y1 - y0;
-				int32_t adx = dx < 0 ? -dx : dx;
-				int32_t ady = dy < 0 ? -dy : dy;
-				int32_t side = adx > ady ? adx : ady;
-				x1 = x0 + (dx < 0 ? -side : side);
-				y1 = y0 + (dy < 0 ? -side : side);
-			} else if (st->current_tool == TOOL_ARROW) {
-				double angle = atan2((double)(y1 - y0), (double)(x1 - x0));
-				double snap = round(angle / (M_PI / 4.0)) * (M_PI / 4.0);
-				double dx = x1 - x0, dy = y1 - y0;
-				double len = sqrt(dx * dx + dy * dy);
-				x1 = x0 + (int32_t)(len * cos(snap));
-				y1 = y0 + (int32_t)(len * sin(snap));
-			}
-		}
-		a.x0 = x0;
-		a.y0 = y0;
+		region_apply_shape_snap(st->current_tool, st->shift_held,
+								st->draw_x0, st->draw_y0, &x1, &y1);
+		a.x0 = st->draw_x0;
+		a.y0 = st->draw_y0;
 		a.x1 = x1;
 		a.y1 = y1;
 	}

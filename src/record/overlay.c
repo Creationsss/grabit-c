@@ -4,17 +4,13 @@
 #define _XOPEN_SOURCE 700
 #include "record/overlay.h"
 
-#include "log.h"
 #include "region/region.h"
 #include "util.h"
 #include "wl.h"
 
-#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/mman.h>
-#include <unistd.h>
 
 #include <cairo/cairo.h>
 #include <wayland-client.h>
@@ -158,20 +154,12 @@ static const struct zwlr_layer_surface_v1_listener layer_listener_g = {
 	.closed = layer_surface_closed,
 };
 
-static bool output_overlaps(const struct grabit_output *o, const struct rect *r) {
-	int32_t lx = r->x > o->x ? r->x : o->x;
-	int32_t ly = r->y > o->y ? r->y : o->y;
-	int32_t rx = (r->x + r->w) < (o->x + o->logical_width) ? (r->x + r->w) : (o->x + o->logical_width);
-	int32_t ry = (r->y + r->h) < (o->y + o->logical_height) ? (r->y + r->h) : (o->y + o->logical_height);
-	return rx > lx && ry > ly;
-}
-
 struct overlay_state *overlay_start(struct grabit_wl_state *s, struct rect r) {
 	if (!s || !s->layer_shell || !s->compositor) return NULL;
 
 	size_t n_overlap = 0;
 	for (size_t i = 0; i < s->n_outputs; i++) {
-		if (output_overlaps(s->outputs[i], &r)) n_overlap++;
+		if (grabit_output_rect_intersect(s->outputs[i], &r, NULL, NULL, NULL, NULL)) n_overlap++;
 	}
 	if (n_overlap == 0) return NULL;
 
@@ -188,7 +176,7 @@ struct overlay_state *overlay_start(struct grabit_wl_state *s, struct rect r) {
 
 	size_t k = 0;
 	for (size_t i = 0; i < s->n_outputs; i++) {
-		if (!output_overlaps(s->outputs[i], &r)) continue;
+		if (!grabit_output_rect_intersect(s->outputs[i], &r, NULL, NULL, NULL, NULL)) continue;
 		struct overlay_output *o = &st->outs[k++];
 		o->st = st;
 		o->go = s->outputs[i];
@@ -227,12 +215,7 @@ void overlay_stop(struct overlay_state *st) {
 	if (!st) return;
 	for (size_t i = 0; i < st->n; i++) {
 		struct overlay_output *o = &st->outs[i];
-		struct grabit_shm_buf b = {
-			.buffer = o->buffer,
-			.map = o->buf_data,
-			.size = o->buf_size,
-		};
-		grabit_shm_buf_destroy(&b);
+		grabit_shm_release(&o->buffer, &o->buf_data, &o->buf_size);
 		if (o->layer_surface) zwlr_layer_surface_v1_destroy(o->layer_surface);
 		if (o->surface) wl_surface_destroy(o->surface);
 	}
