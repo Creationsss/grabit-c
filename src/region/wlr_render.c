@@ -190,6 +190,7 @@ static void output_redraw(struct ro_output *o) {
 		cairo_save(cr);
 		cairo_translate(cr, -o->go->x * S, -o->go->y * S);
 		cairo_scale(cr, S, S);
+		cairo_push_group(cr);
 		if (o->st->out_annos) {
 			for (size_t i = 0; i < o->st->out_annos->n; i++) {
 				annotation_paint(cr, &o->st->out_annos->items[i], 1.0);
@@ -232,6 +233,8 @@ static void output_redraw(struct ro_output *o) {
 			};
 			annotation_paint(cr, &preview, 1.0);
 		}
+		cairo_pop_group_to_source(cr);
+		cairo_paint(cr);
 		if (o->st->text_input_active) {
 			double font = 18.0;
 			cairo_select_font_face(cr, "sans-serif",

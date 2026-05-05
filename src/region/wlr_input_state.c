@@ -239,7 +239,7 @@ void region_commit_drawing(struct ro_state *st) {
 	a.width = st->current_width;
 	a.font_size = ANNO_DEFAULT_FONT;
 
-	if (st->current_tool == TOOL_PEN) {
+	if (st->current_tool == TOOL_PEN || st->current_tool == TOOL_ERASER) {
 		if (st->pen_n == 0) {
 			st->drawing = false;
 			return;

@@ -128,7 +128,8 @@ static void pointer_motion(void *data, struct wl_pointer *p, uint32_t time,
 			st->sel_y = st->cursor_y - st->move_grab_dy;
 		} else if (st->handle_dragging != HANDLE_NONE) {
 			region_apply_handle_drag(st);
-		} else if (st->drawing && st->current_tool == TOOL_PEN) {
+		} else if (st->drawing &&
+				   (st->current_tool == TOOL_PEN || st->current_tool == TOOL_ERASER)) {
 			region_pen_append(st, st->cursor_x, st->cursor_y);
 		}
 	} else {
@@ -288,7 +289,7 @@ static void pointer_button(void *data, struct wl_pointer *p, uint32_t serial,
 		st->drawing = true;
 		st->draw_x0 = st->cursor_x;
 		st->draw_y0 = st->cursor_y;
-		if (st->current_tool == TOOL_PEN) {
+		if (st->current_tool == TOOL_PEN || st->current_tool == TOOL_ERASER) {
 			st->pen_n = 0;
 			region_pen_append(st, st->draw_x0, st->draw_y0);
 		}

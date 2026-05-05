@@ -203,14 +203,21 @@ void annotation_paint(cairo_t *cr, const struct annotation *a, double scale) {
 		break;
 	}
 	case TOOL_ERASER: {
-		double x = a->x0 < a->x1 ? a->x0 : a->x1;
-		double y = a->y0 < a->y1 ? a->y0 : a->y1;
-		double rw = a->x0 < a->x1 ? a->x1 - a->x0 : a->x0 - a->x1;
-		double rh = a->y0 < a->y1 ? a->y1 - a->y0 : a->y0 - a->y1;
-		if (rw < 1.0 || rh < 1.0) break;
-		set_color(cr, a->color);
-		cairo_rectangle(cr, x, y, rw, rh);
-		cairo_fill(cr);
+		if (a->n_points < 1) break;
+		cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
+		cairo_set_line_width(cr, w);
+		cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
+		cairo_set_line_join(cr, CAIRO_LINE_JOIN_ROUND);
+		cairo_move_to(cr, a->points[0], a->points[1]);
+		for (size_t i = 1; i < a->n_points; i++) {
+			cairo_line_to(cr, a->points[i * 2], a->points[i * 2 + 1]);
+		}
+		if (a->n_points == 1) {
+			cairo_arc(cr, a->points[0], a->points[1], w / 2.0, 0, 2.0 * M_PI);
+			cairo_fill(cr);
+		} else {
+			cairo_stroke(cr);
+		}
 		break;
 	}
 	case TOOL_COUNT:
@@ -221,13 +228,16 @@ void annotation_paint(cairo_t *cr, const struct annotation *a, double scale) {
 
 void annotation_list_paint(cairo_t *cr, const struct annotation_list *list,
 						   int32_t origin_x, int32_t origin_y, double scale) {
-	if (!list) return;
+	if (!list || list->n == 0) return;
 	cairo_save(cr);
 	cairo_translate(cr, -origin_x * scale, -origin_y * scale);
 	cairo_scale(cr, scale, scale);
+	cairo_push_group(cr);
 	for (size_t i = 0; i < list->n; i++) {
 		annotation_paint(cr, &list->items[i], 1.0);
 	}
+	cairo_pop_group_to_source(cr);
+	cairo_paint(cr);
 	cairo_restore(cr);
 }
 
