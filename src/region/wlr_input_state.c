@@ -45,25 +45,39 @@ int region_handle_at(const struct ro_state *st, int32_t x, int32_t y) {
 
 static int flip_handle_x(int h) {
 	switch (h) {
-	case HANDLE_NW: return HANDLE_NE;
-	case HANDLE_NE: return HANDLE_NW;
-	case HANDLE_E: return HANDLE_W;
-	case HANDLE_SE: return HANDLE_SW;
-	case HANDLE_SW: return HANDLE_SE;
-	case HANDLE_W: return HANDLE_E;
-	default: return h;
+	case HANDLE_NW:
+		return HANDLE_NE;
+	case HANDLE_NE:
+		return HANDLE_NW;
+	case HANDLE_E:
+		return HANDLE_W;
+	case HANDLE_SE:
+		return HANDLE_SW;
+	case HANDLE_SW:
+		return HANDLE_SE;
+	case HANDLE_W:
+		return HANDLE_E;
+	default:
+		return h;
 	}
 }
 
 static int flip_handle_y(int h) {
 	switch (h) {
-	case HANDLE_NW: return HANDLE_SW;
-	case HANDLE_N: return HANDLE_S;
-	case HANDLE_NE: return HANDLE_SE;
-	case HANDLE_SE: return HANDLE_NE;
-	case HANDLE_S: return HANDLE_N;
-	case HANDLE_SW: return HANDLE_NW;
-	default: return h;
+	case HANDLE_NW:
+		return HANDLE_SW;
+	case HANDLE_N:
+		return HANDLE_S;
+	case HANDLE_NE:
+		return HANDLE_SE;
+	case HANDLE_SE:
+		return HANDLE_NE;
+	case HANDLE_S:
+		return HANDLE_N;
+	case HANDLE_SW:
+		return HANDLE_NW;
+	default:
+		return h;
 	}
 }
 
@@ -195,8 +209,10 @@ bool region_set_hover(struct ro_state *st, int btn) {
 	st->hovered_button = btn;
 	bool was_visible = st->tooltip_visible;
 	st->tooltip_visible = false;
-	if (btn >= 0) region_tooltip_arm(st);
-	else region_tooltip_disarm(st);
+	if (btn >= 0)
+		region_tooltip_arm(st);
+	else
+		region_tooltip_disarm(st);
 	return was_visible;
 }
 

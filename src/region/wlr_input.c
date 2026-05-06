@@ -134,12 +134,13 @@ static void pointer_motion(void *data, struct wl_pointer *p, uint32_t time,
 		if (st->slider_dragging) {
 			int32_t slx, sly, slw, slh;
 			region_toolbar_slider_rect(st, &slx, &sly, &slw, &slh);
-			(void)sly; (void)slh;
+			(void)sly;
+			(void)slh;
 			double frac = slw > 0 ? (double)(st->cursor_x - slx) / (double)slw : 0;
 			if (frac < 0) frac = 0;
 			if (frac > 1) frac = 1;
 			st->current_width = WIDTH_MIN +
-				(int32_t)(frac * (WIDTH_MAX - WIDTH_MIN) + 0.5);
+								(int32_t)(frac * (WIDTH_MAX - WIDTH_MIN) + 0.5);
 		} else if (st->color_picker_dragging) {
 			uint32_t picked = 0;
 			if (region_color_picker_pick(st, st->cursor_x, st->cursor_y, &picked)) {
@@ -297,12 +298,13 @@ static void pointer_button(void *data, struct wl_pointer *p, uint32_t serial,
 				} else if (act == TB_WIDTH_SLIDER) {
 					int32_t sx, sy, sw, sh;
 					region_toolbar_slider_rect(st, &sx, &sy, &sw, &sh);
-					(void)sy; (void)sh;
+					(void)sy;
+					(void)sh;
 					double frac = sw > 0 ? (double)(st->cursor_x - sx) / (double)sw : 0;
 					if (frac < 0) frac = 0;
 					if (frac > 1) frac = 1;
 					st->current_width = WIDTH_MIN +
-						(int32_t)(frac * (WIDTH_MAX - WIDTH_MIN) + 0.5);
+										(int32_t)(frac * (WIDTH_MAX - WIDTH_MIN) + 0.5);
 					st->slider_dragging = true;
 					st->edit_choices_dirty = true;
 					region_drag_start(st);

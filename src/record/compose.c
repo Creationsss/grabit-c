@@ -191,7 +191,8 @@ int rec_layout_capture_compose(struct grabit_wl_state *s, struct rec_layout *lay
 void rec_layout_free(struct rec_layout *layout) {
 	if (!layout) return;
 	if (layout->slice_caches) {
-		for (size_t i = 0; i < layout->n; i++) sc_pool_destroy(&layout->slice_caches[i]);
+		for (size_t i = 0; i < layout->n; i++)
+			sc_pool_destroy(&layout->slice_caches[i]);
 		free(layout->slice_caches);
 	}
 	free(layout->slices);

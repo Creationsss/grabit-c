@@ -137,10 +137,14 @@ static void hsl_to_rgb(double h, double s, double l, double *r, double *g, doubl
 		if (tc < 0) tc += 1.0;
 		if (tc > 1) tc -= 1.0;
 		double v;
-		if (tc < 1.0 / 6.0) v = p + (q - p) * 6.0 * tc;
-		else if (tc < 0.5) v = q;
-		else if (tc < 2.0 / 3.0) v = p + (q - p) * (2.0 / 3.0 - tc) * 6.0;
-		else v = p;
+		if (tc < 1.0 / 6.0)
+			v = p + (q - p) * 6.0 * tc;
+		else if (tc < 0.5)
+			v = q;
+		else if (tc < 2.0 / 3.0)
+			v = p + (q - p) * (2.0 / 3.0 - tc) * 6.0;
+		else
+			v = p;
 		*out[i] = v;
 	}
 }
@@ -303,7 +307,10 @@ void region_color_picker_render(cairo_t *cr, const struct ro_output *o) {
 	int32_t tx, ty, tw, th;
 	const struct grabit_output *go;
 	region_toolbar_rect(o->st, &go, &tx, &ty, &tw, &th);
-	(void)tx; (void)ty; (void)tw; (void)th;
+	(void)tx;
+	(void)ty;
+	(void)tw;
+	(void)th;
 	if (!go || go != o->go) return;
 
 	int32_t S = o->scale;
@@ -319,7 +326,8 @@ void region_color_picker_render(cairo_t *cr, const struct ro_output *o) {
 	double bg_y = dy - (double)COLOR_PICKER_PAD * S;
 	double bg_w = dw + 2.0 * COLOR_PICKER_PAD * S;
 	double bg_h = dh + (COLOR_PICKER_INPUT_GAP + COLOR_PICKER_INPUT_H +
-						2 * COLOR_PICKER_PAD) * S;
+						2 * COLOR_PICKER_PAD) *
+						   S;
 	cairo_set_source_rgba(cr, 0.06, 0.06, 0.06, 0.96);
 	cairo_rectangle(cr, bg_x, bg_y, bg_w, bg_h);
 	cairo_fill(cr);

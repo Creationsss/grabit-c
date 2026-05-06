@@ -49,11 +49,20 @@ static void paint_button_bg(cairo_t *cr, enum tb_action act, bool active,
 							double bxi, double byi, double bwi, double bhi, double pad) {
 	double rr = 0.18, gg = 0.18, bb = 0.18, aa = 0.94;
 	if (active) {
-		rr = 1.0; gg = 0.45; bb = 0.28; aa = 0.92;
+		rr = 1.0;
+		gg = 0.45;
+		bb = 0.28;
+		aa = 0.92;
 	} else if (act == TB_SAVE) {
-		rr = 0.20; gg = 0.58; bb = 0.32; aa = 0.96;
+		rr = 0.20;
+		gg = 0.58;
+		bb = 0.32;
+		aa = 0.96;
 	} else if (act == TB_CANCEL) {
-		rr = 0.62; gg = 0.22; bb = 0.22; aa = 0.96;
+		rr = 0.62;
+		gg = 0.22;
+		bb = 0.22;
+		aa = 0.96;
 	}
 	cairo_set_source_rgba(cr, rr, gg, bb, aa);
 	cairo_rectangle(cr, bxi + pad, byi + pad, bwi - pad * 2, bhi - pad * 2);
@@ -89,17 +98,38 @@ static void paint_slider(cairo_t *cr, const struct ro_state *st, int32_t S,
 
 static void paint_tool_icon(cairo_t *cr, enum tb_action act, double cxi, double cyi, double s_icon) {
 	switch (act) {
-	case TB_TOOL_PEN: toolbar_icon_pen(cr, cxi, cyi, s_icon); break;
-	case TB_TOOL_RECT: toolbar_icon_rect(cr, cxi, cyi, s_icon); break;
-	case TB_TOOL_ELLIPSE: toolbar_icon_ellipse(cr, cxi, cyi, s_icon); break;
-	case TB_TOOL_ARROW: toolbar_icon_arrow(cr, cxi, cyi, s_icon); break;
-	case TB_TOOL_BLUR: toolbar_icon_blur(cr, cxi, cyi, s_icon); break;
-	case TB_TOOL_TEXT: toolbar_icon_text(cr, cxi, cyi, s_icon); break;
-	case TB_TOOL_ERASER: toolbar_icon_eraser(cr, cxi, cyi, s_icon); break;
-	case TB_UNDO: toolbar_icon_undo(cr, cxi, cyi, s_icon); break;
-	case TB_SAVE: toolbar_icon_save(cr, cxi, cyi, s_icon); break;
-	case TB_CANCEL: toolbar_icon_cancel(cr, cxi, cyi, s_icon); break;
-	default: break;
+	case TB_TOOL_PEN:
+		toolbar_icon_pen(cr, cxi, cyi, s_icon);
+		break;
+	case TB_TOOL_RECT:
+		toolbar_icon_rect(cr, cxi, cyi, s_icon);
+		break;
+	case TB_TOOL_ELLIPSE:
+		toolbar_icon_ellipse(cr, cxi, cyi, s_icon);
+		break;
+	case TB_TOOL_ARROW:
+		toolbar_icon_arrow(cr, cxi, cyi, s_icon);
+		break;
+	case TB_TOOL_BLUR:
+		toolbar_icon_blur(cr, cxi, cyi, s_icon);
+		break;
+	case TB_TOOL_TEXT:
+		toolbar_icon_text(cr, cxi, cyi, s_icon);
+		break;
+	case TB_TOOL_ERASER:
+		toolbar_icon_eraser(cr, cxi, cyi, s_icon);
+		break;
+	case TB_UNDO:
+		toolbar_icon_undo(cr, cxi, cyi, s_icon);
+		break;
+	case TB_SAVE:
+		toolbar_icon_save(cr, cxi, cyi, s_icon);
+		break;
+	case TB_CANCEL:
+		toolbar_icon_cancel(cr, cxi, cyi, s_icon);
+		break;
+	default:
+		break;
 	}
 }
 
@@ -174,25 +204,44 @@ void region_toolbar_render(cairo_t *cr, const struct ro_output *o) {
 
 static const char *tooltip_text(enum tb_action act) {
 	switch (act) {
-	case TB_TOOL_PEN: return "Pen  (1)";
-	case TB_TOOL_RECT: return "Rectangle  (2)";
-	case TB_TOOL_ELLIPSE: return "Ellipse  (3)";
-	case TB_TOOL_ARROW: return "Arrow  (4)";
-	case TB_TOOL_BLUR: return "Blur  (5)";
-	case TB_TOOL_TEXT: return "Text  (6)";
-	case TB_TOOL_ERASER: return "Eraser  (7)";
-	case TB_COLOR_RED: return "Red";
-	case TB_COLOR_YELLOW: return "Yellow";
-	case TB_COLOR_GREEN: return "Green";
-	case TB_COLOR_BLUE: return "Blue";
-	case TB_COLOR_BLACK: return "Black";
-	case TB_COLOR_WHITE: return "White";
-	case TB_COLOR_CURRENT: return "Current color  (click to open picker)";
-	case TB_WIDTH_SLIDER: return "Line width  (drag)";
-	case TB_UNDO: return "Undo  (u, hold to repeat)";
-	case TB_SAVE: return "Save  (Enter)";
-	case TB_CANCEL: return "Cancel  (Esc)";
-	default: return NULL;
+	case TB_TOOL_PEN:
+		return "Pen  (1)";
+	case TB_TOOL_RECT:
+		return "Rectangle  (2)";
+	case TB_TOOL_ELLIPSE:
+		return "Ellipse  (3)";
+	case TB_TOOL_ARROW:
+		return "Arrow  (4)";
+	case TB_TOOL_BLUR:
+		return "Blur  (5)";
+	case TB_TOOL_TEXT:
+		return "Text  (6)";
+	case TB_TOOL_ERASER:
+		return "Eraser  (7)";
+	case TB_COLOR_RED:
+		return "Red";
+	case TB_COLOR_YELLOW:
+		return "Yellow";
+	case TB_COLOR_GREEN:
+		return "Green";
+	case TB_COLOR_BLUE:
+		return "Blue";
+	case TB_COLOR_BLACK:
+		return "Black";
+	case TB_COLOR_WHITE:
+		return "White";
+	case TB_COLOR_CURRENT:
+		return "Current color  (click to open picker)";
+	case TB_WIDTH_SLIDER:
+		return "Line width  (drag)";
+	case TB_UNDO:
+		return "Undo  (u, hold to repeat)";
+	case TB_SAVE:
+		return "Save  (Enter)";
+	case TB_CANCEL:
+		return "Cancel  (Esc)";
+	default:
+		return NULL;
 	}
 }
 

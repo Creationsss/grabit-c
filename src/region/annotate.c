@@ -273,4 +273,3 @@ void annotation_list_free(struct annotation_list *list) {
 	free(list->items);
 	memset(list, 0, sizeof *list);
 }
-
