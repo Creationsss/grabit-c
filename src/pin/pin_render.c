@@ -76,7 +76,9 @@ static void draw_close_button(cairo_t *cr, int32_t width) {
 	cairo_restore(cr);
 }
 
-struct pin_dmg { int32_t x, y, w, h; };
+struct pin_dmg {
+	int32_t x, y, w, h;
+};
 
 static void render_paint(struct pin_state *st, const struct pin_dmg *clip) {
 	if (!st->configured || !st->dst_surface || !st->image) return;
@@ -137,8 +139,14 @@ void pin_render_repaint_button_area(struct pin_state *st) {
 		.w = PIN_CLOSE_BTN_SIZE + 2 * pad,
 		.h = PIN_CLOSE_BTN_SIZE + 2 * pad,
 	};
-	if (r.x < 0) { r.w += r.x; r.x = 0; }
-	if (r.y < 0) { r.h += r.y; r.y = 0; }
+	if (r.x < 0) {
+		r.w += r.x;
+		r.x = 0;
+	}
+	if (r.y < 0) {
+		r.h += r.y;
+		r.y = 0;
+	}
 	if (r.x + r.w > st->width) r.w = st->width - r.x;
 	if (r.y + r.h > st->height) r.h = st->height - r.y;
 	if (r.w <= 0 || r.h <= 0) return;

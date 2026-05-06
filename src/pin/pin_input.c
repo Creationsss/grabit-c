@@ -39,13 +39,30 @@ void pin_input_load_cursors(struct pin_state *st) {
 	st->cursor_theme = wl_cursor_theme_load(theme_name, theme_size * s, st->wls->shm);
 	if (!st->cursor_theme) return;
 	static const char *const hand[] = {
-		"pointer", "hand2", "pointing_hand", "hand", "hand1", "left_ptr", NULL,
+		"pointer",
+		"hand2",
+		"pointing_hand",
+		"hand",
+		"hand1",
+		"left_ptr",
+		NULL,
 	};
 	static const char *const move[] = {
-		"grab", "openhand", "fleur", "move", "all-scroll", "left_ptr", NULL,
+		"grab",
+		"openhand",
+		"fleur",
+		"move",
+		"all-scroll",
+		"left_ptr",
+		NULL,
 	};
 	static const char *const grabbing[] = {
-		"grabbing", "closedhand", "fleur", "move", "left_ptr", NULL,
+		"grabbing",
+		"closedhand",
+		"fleur",
+		"move",
+		"left_ptr",
+		NULL,
 	};
 	st->cursor_hand = load_first(st->cursor_theme, hand);
 	st->cursor_move = load_first(st->cursor_theme, move);
@@ -155,9 +172,12 @@ static void update_cursor(struct pin_state *st) {
 	if (!st->pointer_in_surface) return;
 	struct wl_cursor *want = NULL;
 	if (st->input_grabbed) {
-		if (st->dragging) want = st->cursor_grabbing;
-		else if (in_close_button(st, st->cursor_sx, st->cursor_sy)) want = st->cursor_hand;
-		else want = st->cursor_move;
+		if (st->dragging)
+			want = st->cursor_grabbing;
+		else if (in_close_button(st, st->cursor_sx, st->cursor_sy))
+			want = st->cursor_hand;
+		else
+			want = st->cursor_move;
 	}
 	if (want == st->current_cursor) return;
 	st->current_cursor = want;
