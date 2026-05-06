@@ -49,7 +49,7 @@ endif
 PKGS_CORE := json-c libcurl wayland-client wayland-cursor cairo xkbcommon $(BUS_PKG)
 
 CFLAGS    += $(BUS_DEFINE) $(shell $(PKG_CONFIG) --cflags $(PKGS_CORE)) -pthread
-LDLIBS    += $(shell $(PKG_CONFIG) --libs   $(PKGS_CORE)) -lmagic -lrt -pthread
+LDLIBS    += $(shell $(PKG_CONFIG) --libs   $(PKGS_CORE)) -lmagic -lrt -lm -pthread
 
 WL_PROTOCOLS := \
 	wlr-screencopy-unstable-v1 \
