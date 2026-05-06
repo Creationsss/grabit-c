@@ -8,6 +8,7 @@
 #include "config.h"
 #include "log.h"
 #include "notify/notify.h"
+#include "upload/sxcu.h"
 #include "util.h"
 #include "util/json_path.h"
 
@@ -47,7 +48,8 @@ static const struct service *find_service(const char *name) {
 }
 
 bool upload_service_known(const char *name) {
-	return find_service(name) != NULL;
+	if (!name) return false;
+	return find_service(name) != NULL || sxcu_dir_has(name);
 }
 
 int upload_preflight(struct config *cfg, const struct args *a, const char **service_out) {
@@ -194,6 +196,12 @@ int upload_perform(const char *service_name, const char *file_path,
 
 	const struct service *svc = find_service(service_name);
 	if (!svc) {
+		struct sxcu_uploader u = {0};
+		if (sxcu_dir_lookup(service_name, &u) == 0) {
+			int rc = sxcu_upload(&u, file_path, out);
+			sxcu_free(&u);
+			return rc;
+		}
 		log_error("unknown service: %s", service_name);
 		return -1;
 	}

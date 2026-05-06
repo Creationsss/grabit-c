@@ -26,4 +26,6 @@ int upload_perform(const char *service_name,
 				   struct config *cfg,
 				   struct upload_result *out);
 
+int cmd_sxcu(int argc, char **argv);
+
 #endif

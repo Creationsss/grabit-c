@@ -13,6 +13,7 @@ not supported: x11, kde, gnome.
 - in-tree annotation editor (`--edit`): pen, rect, ellipse, arrow, blur, text, eraser, hsl color picker + eyedropper, hex input
 - pin captures to the desktop (always-on-top, click-through, draggable when grabbed)
 - six built-in uploaders: zipline, nest, fakecrime, ez, guns, pixelvault
+- import any sharex `.sxcu` uploader (`grabit sxcu add file.sxcu`); supports multipart/form-url/json/xml/binary, response url/json/regex/header templates, and the legacy `$` placeholder syntax
 - filename templates (`%Y-%m-%d-%H-%M-%S`, `%w` window class, `%t` window title, `%r` random, `%u` uuid, `%s` unix ts, `%o` output name)
 - toml config + `grabit set/get/unset` schema-validated cli
 - runs on non-systemd distros (basu/elogind auto-detected)
@@ -115,6 +116,30 @@ grabit set services.zipline.domain https://your.host
 ```
 
 nest accepts an optional `services.nest.folder` (uuid) to upload into a specific folder.
+
+### sharex (.sxcu) uploaders
+
+import any sharex custom uploader file:
+
+```sh
+grabit sxcu add  ~/Downloads/myhost.sxcu     # parse, sanitize name, copy into config dir
+grabit sxcu list                              # registered names
+grabit sxcu show <name>                       # parsed fields (url, method, headers, ...)
+grabit sxcu rm <name>
+```
+
+added uploaders live at `~/.config/grabit/uploaders/<name>.sxcu` (chmod 0600). once added, use them like a built-in:
+
+```sh
+grabit --<name>                               # screenshot + upload
+grabit -f file.png --<name>                   # upload an existing file
+```
+
+supported sxcu fields: `RequestURL`, `RequestMethod`, `Body` (`MultipartFormData`/`FormURLEncoded`/`JSON`/`XML`/`Binary`/`None`), `FileFormName`, `Headers`, `Parameters`, `Arguments`, `Data`, `URL`, `ErrorMessage`, `RegexList`, `DestinationType`.
+
+placeholders in url/headers/args/data: `{filename}`, `{base64:...}`, `{random:a|b|c}`, `{select:a|b|c}`, `{prompt:label|default}`. response placeholders for the `URL`/`ErrorMessage` templates: `{response}`, `{responseurl}`, `{json:path.to[0].field}`, `{regex:pattern|group}`, `{regex:N|group}` (N indexes `RegexList`), `{header:Name}`. legacy `$name:arg$` form is also accepted.
+
+auth lives inside the `.sxcu` `Headers` block — no separate `services.<name>.auth` config needed.
 
 ### default action
 

@@ -51,4 +51,6 @@ int grabit_buf_puts(struct grabit_buf *b, const char *s);
 int grabit_buf_putc(struct grabit_buf *b, char c);
 void grabit_buf_free(struct grabit_buf *b);
 
+int grabit_read_file(const char *path, size_t max_bytes, char **out, size_t *out_len);
+
 #endif

@@ -100,6 +100,12 @@ static int print_help(void) {
 		"  get [<key>]       Print one config key, or every set key\n"
 		"  unset <key>       Remove a config key\n"
 		"\n"
+		"Custom uploaders (ShareX .sxcu):\n"
+		"  sxcu add <file>   Register a .sxcu uploader (use as --<name>)\n"
+		"  sxcu list         Show registered uploaders\n"
+		"  sxcu show <name>  Print parsed fields\n"
+		"  sxcu rm <name>    Remove an uploader\n"
+		"\n"
 		"Filename templates (--filename or `filename` config key):\n"
 		"  %Y %m %d %H %M %S strftime fields\n"
 		"  %s                unix timestamp\n"
@@ -604,6 +610,7 @@ int main(int argc, char **argv) {
 		if (strcmp(first, "set") == 0) return cmd_set(argc - 2, argv + 2);
 		if (strcmp(first, "get") == 0) return cmd_get(argc - 2, argv + 2);
 		if (strcmp(first, "unset") == 0) return cmd_unset(argc - 2, argv + 2);
+		if (strcmp(first, "sxcu") == 0) return cmd_sxcu(argc - 2, argv + 2);
 	}
 
 	struct args a;

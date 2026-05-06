@@ -113,6 +113,12 @@ GRABIT_SRCS := \
 	src/tray/sni.c \
 	src/tray/tray.c \
 	src/upload/upload.c \
+	src/upload/sxcu_parse.c \
+	src/upload/sxcu_template.c \
+	src/upload/sxcu_request.c \
+	src/upload/sxcu_upload.c \
+	src/upload/sxcu_dir.c \
+	src/upload/sxcu_cli.c \
 	src/ocr/tesseract.c \
 	src/sound/sound.c \
 	src/pin/pin.c \

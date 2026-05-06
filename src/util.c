@@ -118,6 +118,50 @@ void grabit_buf_free(struct grabit_buf *b) {
 	b->len = b->cap = 0;
 }
 
+int grabit_read_file(const char *path, size_t max_bytes, char **out, size_t *out_len) {
+	if (!path || !out || !out_len) return -1;
+	*out = NULL;
+	*out_len = 0;
+	FILE *f = fopen(path, "rb");
+	if (!f) return -1;
+	if (fseek(f, 0, SEEK_END) != 0) {
+		fclose(f);
+		return -1;
+	}
+	long sz = ftell(f);
+	if (sz < 0) {
+		fclose(f);
+		return -1;
+	}
+	if (max_bytes && (size_t)sz > max_bytes) {
+		fclose(f);
+		errno = EFBIG;
+		return -1;
+	}
+	rewind(f);
+	char *buf = malloc((size_t)sz + 1);
+	if (!buf) {
+		fclose(f);
+		return -1;
+	}
+	size_t off = 0;
+	while (off < (size_t)sz) {
+		size_t got = fread(buf + off, 1, (size_t)sz - off, f);
+		if (got == 0) break;
+		off += got;
+	}
+	int err = ferror(f);
+	fclose(f);
+	if (err || off != (size_t)sz) {
+		free(buf);
+		return -1;
+	}
+	buf[sz] = '\0';
+	*out = buf;
+	*out_len = (size_t)sz;
+	return 0;
+}
+
 int grabit_runtime_dir(char *out, size_t cap) {
 	const char *xdg = getenv("XDG_RUNTIME_DIR");
 	if (xdg && xdg[0] == '/') {

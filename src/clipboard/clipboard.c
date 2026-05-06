@@ -6,9 +6,9 @@
 
 #include "clipboard/clipboard_internal.h"
 #include "log.h"
+#include "util.h"
 
 #include <errno.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -31,45 +31,22 @@ int clipboard_set_text(const char *text) {
 int clipboard_set_image_file(const char *path) {
 	if (!path) return -1;
 
-	FILE *f = fopen(path, "rb");
-	if (!f) {
-		log_error("clipboard: open %s: %s", path, strerror(errno));
+	char *buf = NULL;
+	size_t sz = 0;
+	if (grabit_read_file(path, GRABIT_CLIP_MAX_FILE_SIZE, &buf, &sz) != 0) {
+		if (errno == EFBIG) {
+			log_error("clipboard: file %s exceeds %zu-byte cap", path,
+					  GRABIT_CLIP_MAX_FILE_SIZE);
+		} else {
+			log_error("clipboard: read %s: %s", path, strerror(errno));
+		}
 		return -1;
 	}
-	if (fseek(f, 0, SEEK_END) != 0) {
-		fclose(f);
-		return -1;
-	}
-	long sz = ftell(f);
-	if (sz < 0) {
-		fclose(f);
-		return -1;
-	}
-	if ((size_t)sz > GRABIT_CLIP_MAX_FILE_SIZE) {
-		log_error("clipboard: file %s is %ld bytes, larger than %zu-byte cap",
-				  path, sz, GRABIT_CLIP_MAX_FILE_SIZE);
-		fclose(f);
-		return -1;
-	}
-	rewind(f);
-
-	void *buf = malloc((size_t)sz);
-	if (!buf) {
-		fclose(f);
-		return -1;
-	}
-	if (fread(buf, 1, (size_t)sz, f) != (size_t)sz) {
-		free(buf);
-		fclose(f);
-		log_error("clipboard: short read on %s", path);
-		return -1;
-	}
-	fclose(f);
 
 	static const char *const IMAGE_MIMES[] = {
 		"image/png",
 	};
-	int rc = clipboard_send_bytes(buf, (size_t)sz,
+	int rc = clipboard_send_bytes(buf, sz,
 								  IMAGE_MIMES,
 								  sizeof IMAGE_MIMES / sizeof IMAGE_MIMES[0]);
 
