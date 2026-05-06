@@ -9,7 +9,8 @@ not supported: x11, kde, gnome.
 
 - region screenshots with native freeze + selector (no `slurp`/`grim` shellouts)
 - screen recording to mp4/h.264 with live overlay + sni tray icon
-- ocr (capture → text → clipboard) via libtesseract
+- ocr (capture → text → clipboard) via tesseract
+- in-tree annotation editor (`--edit`): pen, rect, ellipse, arrow, blur, text, eraser, hsl color picker + eyedropper, hex input
 - pin captures to the desktop (always-on-top, click-through, draggable when grabbed)
 - six built-in uploaders: zipline, nest, fakecrime, ez, guns, pixelvault
 - filename templates (`%Y-%m-%d-%H-%M-%S`, `%w` window class, `%t` window title, `%r` random, `%u` uuid, `%s` unix ts, `%o` output name)
@@ -75,6 +76,7 @@ grabit -o > /tmp/path.txt     # save and print path
 grabit --tesseract            # ocr a region, text into clipboard
 grabit --record               # toggle recording (run again to stop)
 grabit --pin                  # pin a region screenshot to the desktop
+grabit -e -c                  # annotate before copying (-e pairs with -c/-u/-o)
 grabit -f path.png -u         # upload an existing file
 ```
 
@@ -181,6 +183,31 @@ grabit --tesseract            # select a region; text lands in clipboard
 ```
 
 requires `tesseract` on `$PATH` and `eng.traineddata` (typically in `/usr/share/tessdata/` or `$TESSDATA_PREFIX`). override the binary with `grabit set ocr.tesseract /custom/path/tesseract`.
+
+## edit
+
+```sh
+grabit -e -c                  # annotate, then copy
+grabit -e -u                  # annotate, then upload
+grabit -e -o                  # annotate, then save
+```
+
+`-e`/`--edit` pairs with any action. flow: drag a region, then a flameshot-style toolbar appears. tools:
+
+- **pen, rect, ellipse, arrow, blur, text, eraser** — keyboard shortcuts `1`–`7`
+- **6 preset color swatches** + a current-color square (click to open the picker)
+- **hsl picker panel**: drag in the gradient, type a hex value (`#rrggbb` or `#rgb`), or click the eyedropper to sample a pixel from the screen
+- **width slider** (1–12)
+- **undo** (`u`, hold to repeat) / **save** (`enter`) / **cancel** (`esc` or right-click)
+- **resize handles** on the locked region; **ctrl+drag** inside to move the whole region
+- **shift** while drawing constrains rect/ellipse/blur to squares and arrows to 45° angles
+
+last-picked color and width persist via:
+
+| key | default | notes |
+|---|---|---|
+| `edit.color` | `#ff3030` | `#rrggbb`, `#rgb`, or one of red/yellow/green/blue/black/white |
+| `edit.width` | `4` | integer 1–20 |
 
 ## filename templates
 
