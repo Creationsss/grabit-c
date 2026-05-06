@@ -259,5 +259,8 @@ bool grabit_is_grabit_process(pid_t pid) {
 	if (!ok) return false;
 	char *nl = strchr(comm, '\n');
 	if (nl) *nl = '\0';
-	return strcmp(comm, "grabit") == 0;
+	const char *base = comm;
+	if (base[0] == '.') base++;
+	if (strncmp(base, "grabit", 6) != 0) return false;
+	return base[6] == '\0' || base[6] == '-';
 }

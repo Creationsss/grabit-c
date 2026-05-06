@@ -23,12 +23,15 @@
 #define PIN_SOCK_PREFIX "grabit_pin-"
 #define PIN_SOCK_SUFFIX ".sock"
 
-static int set_cloexec_nonblock(int fd) {
+static void set_cloexec(int fd) {
 	int fl = fcntl(fd, F_GETFD);
 	if (fl >= 0) fcntl(fd, F_SETFD, fl | FD_CLOEXEC);
+}
+
+static void set_cloexec_nonblock(int fd) {
+	set_cloexec(fd);
 	int sl = fcntl(fd, F_GETFL);
 	if (sl >= 0) fcntl(fd, F_SETFL, sl | O_NONBLOCK);
-	return 0;
 }
 
 int pin_ipc_open(struct pin_state *st) {
@@ -93,7 +96,8 @@ void pin_ipc_handle(struct pin_state *st) {
 			if (!st->input_grabbed) {
 				st->input_grabbed = true;
 				pin_input_apply_region(st);
-				pin_render_paint(st);
+				pin_render_repaint_button_area(st);
+				pin_input_refresh_cursor(st);
 			}
 		} else if (strcmp(buf, "release") == 0) {
 			if (st->input_grabbed) {
@@ -102,7 +106,8 @@ void pin_ipc_handle(struct pin_state *st) {
 				st->pending_dx_fixed = 0;
 				st->pending_dy_fixed = 0;
 				pin_input_apply_region(st);
-				pin_render_paint(st);
+				pin_render_repaint_button_area(st);
+				pin_input_refresh_cursor(st);
 			}
 		} else if (strcmp(buf, "close") == 0) {
 			st->finished = true;
@@ -137,7 +142,7 @@ int pin_ipc_broadcast(const char *msg) {
 		log_error("pin: socket: %s", strerror(errno));
 		return -1;
 	}
-	set_cloexec_nonblock(fd);
+	set_cloexec(fd);
 
 	int sent = 0;
 	struct dirent *ent;

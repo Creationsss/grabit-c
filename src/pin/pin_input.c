@@ -7,12 +7,80 @@
 #include "log.h"
 #include "wl.h"
 
+#include <stdlib.h>
+
 #include <linux/input-event-codes.h>
 
 #include <wayland-client.h>
+#include <wayland-cursor.h>
 
 #include "relative-pointer-unstable-v1-client-protocol.h"
 #include "wlr-layer-shell-unstable-v1-client-protocol.h"
+
+static struct wl_cursor *load_first(struct wl_cursor_theme *t, const char *const *names) {
+	for (size_t i = 0; names[i]; i++) {
+		struct wl_cursor *c = wl_cursor_theme_get_cursor(t, names[i]);
+		if (c) return c;
+	}
+	return NULL;
+}
+
+void pin_input_load_cursors(struct pin_state *st) {
+	if (!st->wls->shm || !st->wls->compositor) return;
+	const char *theme_name = getenv("XCURSOR_THEME");
+	int32_t theme_size = 24;
+	const char *size_env = getenv("XCURSOR_SIZE");
+	if (size_env && *size_env) {
+		char *end = NULL;
+		long v = strtol(size_env, &end, 10);
+		if (end != size_env && v >= 8 && v <= 256) theme_size = (int32_t)v;
+	}
+	int32_t s = st->scale > 0 ? st->scale : 1;
+	st->cursor_theme = wl_cursor_theme_load(theme_name, theme_size * s, st->wls->shm);
+	if (!st->cursor_theme) return;
+	static const char *const hand[] = {
+		"pointer", "hand2", "pointing_hand", "hand", "hand1", "left_ptr", NULL,
+	};
+	static const char *const move[] = {
+		"grab", "openhand", "fleur", "move", "all-scroll", "left_ptr", NULL,
+	};
+	static const char *const grabbing[] = {
+		"grabbing", "closedhand", "fleur", "move", "left_ptr", NULL,
+	};
+	st->cursor_hand = load_first(st->cursor_theme, hand);
+	st->cursor_move = load_first(st->cursor_theme, move);
+	st->cursor_grabbing = load_first(st->cursor_theme, grabbing);
+	st->cursor_surface = wl_compositor_create_surface(st->wls->compositor);
+}
+
+void pin_input_destroy_cursors(struct pin_state *st) {
+	if (st->cursor_surface) {
+		wl_surface_destroy(st->cursor_surface);
+		st->cursor_surface = NULL;
+	}
+	if (st->cursor_theme) {
+		wl_cursor_theme_destroy(st->cursor_theme);
+		st->cursor_theme = NULL;
+	}
+}
+
+static void apply_cursor(struct pin_state *st, struct wl_cursor *c) {
+	if (!st->pointer || !st->cursor_surface || st->last_pointer_serial == 0) return;
+	if (!c || c->image_count == 0) return;
+	struct wl_cursor_image *img = c->images[0];
+	struct wl_buffer *buf = wl_cursor_image_get_buffer(img);
+	if (!buf) return;
+	int32_t s = st->scale > 0 ? st->scale : 1;
+	wl_pointer_set_cursor(st->pointer, st->last_pointer_serial, st->cursor_surface,
+						  (int32_t)img->hotspot_x / s, (int32_t)img->hotspot_y / s);
+	wl_surface_set_buffer_scale(st->cursor_surface, s);
+	wl_surface_attach(st->cursor_surface, buf, 0, 0);
+	wl_surface_damage_buffer(st->cursor_surface, 0, 0,
+							 (int32_t)img->width, (int32_t)img->height);
+	wl_surface_commit(st->cursor_surface);
+}
+
+static void update_cursor(struct pin_state *st);
 
 void pin_input_apply_region(struct pin_state *st) {
 	if (!st->surface || !st->wls->compositor) return;
@@ -83,14 +151,35 @@ static void apply_drag_delta(struct pin_state *st, wl_fixed_t dx, wl_fixed_t dy)
 	flush_drag(st);
 }
 
+static void update_cursor(struct pin_state *st) {
+	if (!st->pointer_in_surface) return;
+	struct wl_cursor *want = NULL;
+	if (st->input_grabbed) {
+		if (st->dragging) want = st->cursor_grabbing;
+		else if (in_close_button(st, st->cursor_sx, st->cursor_sy)) want = st->cursor_hand;
+		else want = st->cursor_move;
+	}
+	if (want == st->current_cursor) return;
+	st->current_cursor = want;
+	apply_cursor(st, want);
+}
+
+void pin_input_refresh_cursor(struct pin_state *st) {
+	st->current_cursor = NULL;
+	update_cursor(st);
+}
+
 static void pointer_enter(void *data, struct wl_pointer *p, uint32_t serial,
 						  struct wl_surface *surface, wl_fixed_t sx, wl_fixed_t sy) {
 	(void)p;
-	(void)serial;
 	(void)surface;
 	struct pin_state *st = data;
 	st->cursor_sx = wl_fixed_to_int(sx);
 	st->cursor_sy = wl_fixed_to_int(sy);
+	st->last_pointer_serial = serial;
+	st->pointer_in_surface = true;
+	st->current_cursor = NULL;
+	update_cursor(st);
 }
 
 static void pointer_leave(void *data, struct wl_pointer *p, uint32_t serial,
@@ -99,9 +188,11 @@ static void pointer_leave(void *data, struct wl_pointer *p, uint32_t serial,
 	(void)serial;
 	(void)surface;
 	struct pin_state *st = data;
+	st->pointer_in_surface = false;
 	st->dragging = false;
 	st->pending_dx_fixed = 0;
 	st->pending_dy_fixed = 0;
+	st->current_cursor = NULL;
 }
 
 static void pointer_motion(void *data, struct wl_pointer *p, uint32_t time,
@@ -111,14 +202,15 @@ static void pointer_motion(void *data, struct wl_pointer *p, uint32_t time,
 	struct pin_state *st = data;
 	st->cursor_sx = wl_fixed_to_int(sx);
 	st->cursor_sy = wl_fixed_to_int(sy);
+	update_cursor(st);
 }
 
 static void pointer_button(void *data, struct wl_pointer *p, uint32_t serial,
 						   uint32_t time, uint32_t button, uint32_t state) {
 	(void)p;
-	(void)serial;
 	(void)time;
 	struct pin_state *st = data;
+	st->last_pointer_serial = serial;
 	if (button != BTN_LEFT) return;
 
 	if (state == WL_POINTER_BUTTON_STATE_PRESSED) {
@@ -134,6 +226,7 @@ static void pointer_button(void *data, struct wl_pointer *p, uint32_t serial,
 		st->pending_dx_fixed = 0;
 		st->pending_dy_fixed = 0;
 	}
+	update_cursor(st);
 }
 
 static void pointer_axis(void *data, struct wl_pointer *p, uint32_t time,

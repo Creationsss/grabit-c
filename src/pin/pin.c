@@ -103,6 +103,7 @@ static int pin_main(cairo_surface_t *img, bool have_rect, struct rect r) {
 
 	pin_render_attach_layer(&st);
 	pin_input_attach(&st);
+	pin_input_load_cursors(&st);
 
 	zwlr_layer_surface_v1_set_size(st.layer_surface,
 								   (uint32_t)st.width, (uint32_t)st.height);
@@ -184,6 +185,7 @@ out:
 		st.drag_frame_cb = NULL;
 	}
 	pin_render_free_buffer(&st);
+	pin_input_destroy_cursors(&st);
 	if (st.layer_surface) zwlr_layer_surface_v1_destroy(st.layer_surface);
 	if (st.surface) wl_surface_destroy(st.surface);
 	if (st.relative_pointer) zwp_relative_pointer_v1_destroy(st.relative_pointer);
