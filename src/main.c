@@ -608,6 +608,23 @@ static int run(const struct args *a) {
 	return rc;
 }
 
+static bool is_value_flag(const char *s) {
+	return strcmp(s, "-o") == 0 || strcmp(s, "--output") == 0 ||
+		   strcmp(s, "--save") == 0 || strcmp(s, "-f") == 0 ||
+		   strcmp(s, "--filename") == 0;
+}
+
+static bool plugin_argv_has_input(int argc, char **argv) {
+	for (int i = 1; i < argc; i++) {
+		if (argv[i][0] == '-') {
+			if (is_value_flag(argv[i])) i++;
+			continue;
+		}
+		return true;
+	}
+	return false;
+}
+
 static int try_dispatch_plugin(const char *name, int argc, char **argv) {
 	if (!plugin_name_is_valid(name)) return -1;
 	char path[1024];
@@ -615,13 +632,30 @@ static int try_dispatch_plugin(const char *name, int argc, char **argv) {
 
 	plugin_maybe_auto_update(name);
 
-	bool want_capture = false;
+	bool force_capture = false;
+	bool no_capture = false;
 	for (int i = 1; i < argc; i++) {
-		if (strcmp(argv[i], "--capture") == 0) {
-			want_capture = true;
-			break;
+		if (strcmp(argv[i], "--capture") == 0)
+			force_capture = true;
+		else if (strcmp(argv[i], "--no-capture") == 0)
+			no_capture = true;
+	}
+
+	bool manifest_auto = false;
+	char manifest_path[1024];
+	int n = snprintf(manifest_path, sizeof manifest_path, "%s/%s/manifest.toml",
+					 plugin_dir_path(), name);
+	if (n > 0 && (size_t)n < sizeof manifest_path) {
+		struct plugin_manifest m;
+		if (plugin_manifest_parse_file(manifest_path, &m) == 0) {
+			manifest_auto = m.capture_auto;
+			plugin_manifest_free(&m);
 		}
 	}
+
+	bool want_capture = !no_capture &&
+						(force_capture ||
+						 (manifest_auto && !plugin_argv_has_input(argc, argv)));
 
 	char *captured = NULL;
 	struct config cap_cfg;
@@ -654,6 +688,7 @@ static int try_dispatch_plugin(const char *name, int argc, char **argv) {
 	if (captured) new_argv[o++] = captured;
 	for (int i = 1; i < argc; i++) {
 		if (strcmp(argv[i], "--capture") == 0) continue;
+		if (strcmp(argv[i], "--no-capture") == 0) continue;
 		new_argv[o++] = argv[i];
 	}
 

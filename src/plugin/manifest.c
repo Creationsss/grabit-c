@@ -81,6 +81,12 @@ int plugin_manifest_parse_file(const char *path, struct plugin_manifest *out) {
 	}
 	if (!out->branch) out->branch = strdup(DEFAULT_BRANCH);
 
+	toml_table_t *capture = toml_table_in(root, "capture");
+	if (capture) {
+		toml_datum_t d = toml_bool_in(capture, "auto");
+		if (d.ok) out->capture_auto = d.u.b;
+	}
+
 	toml_free(root);
 
 	if (!out->name || !out->name[0]) {

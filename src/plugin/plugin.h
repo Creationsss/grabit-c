@@ -23,6 +23,7 @@ struct plugin_manifest {
 	char *prebuilt_sha256;
 	int update_check_hours;
 	char *branch;
+	bool capture_auto;
 };
 
 void plugin_manifest_free(struct plugin_manifest *m);

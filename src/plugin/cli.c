@@ -67,6 +67,7 @@ static int do_show(const char *name) {
 	}
 	printf("auto-update: %d hour(s)\n", m.update_check_hours);
 	if (m.branch) printf("branch:      %s\n", m.branch);
+	printf("auto-capture: %s\n", m.capture_auto ? "yes" : "no");
 
 	plugin_manifest_free(&m);
 	return 0;
