@@ -176,6 +176,10 @@ int plugin_update_all(void) {
 
 void plugin_maybe_auto_update(const char *name) {
 	if (!plugin_name_is_valid(name)) return;
+
+	int lock_fd = plugin_lock_try();
+	if (lock_fd < 0) return;
+
 	char *plugin_dir = NULL;
 	char *manifest_path = NULL;
 	char *check_path = NULL;
@@ -195,6 +199,7 @@ out:
 	free(plugin_dir);
 	free(manifest_path);
 	free(check_path);
+	plugin_lock_release(lock_fd);
 	if (!should_spawn) return;
 
 	pid_t pid = fork();

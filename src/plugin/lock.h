@@ -5,6 +5,7 @@
 #define GRABIT_PLUGIN_LOCK_H
 
 int plugin_lock_acquire(void);
+int plugin_lock_try(void);
 void plugin_lock_release(int fd);
 
 #endif

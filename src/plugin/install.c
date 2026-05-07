@@ -174,8 +174,30 @@ int plugin_install_git(const char *url) {
 	char *final_dir = NULL;
 	if (grabit_xasprintf(&final_dir, "%s/%s", root, m.name) != 0) goto fail_manifest;
 	if (stat(final_dir, &st) == 0) {
-		log_error("plugin: %s already installed; `grabit plugin remove %s` first",
-				  m.name, m.name);
+		char *src_path = NULL;
+		char src_kind[32] = {0}, src_url[2048] = {0};
+		if (grabit_xasprintf(&src_path, "%s/.source", final_dir) == 0) {
+			FILE *sf = fopen(src_path, "r");
+			if (sf) {
+				if (fgets(src_kind, sizeof src_kind, sf)) {
+					char *nl = strchr(src_kind, '\n');
+					if (nl) *nl = '\0';
+				}
+				if (fgets(src_url, sizeof src_url, sf)) {
+					char *nl = strchr(src_url, '\n');
+					if (nl) *nl = '\0';
+				}
+				fclose(sf);
+			}
+		}
+		free(src_path);
+		if (src_url[0] && strcmp(src_url, url) == 0) {
+			log_info("plugin: %s already installed from %s", m.name, url);
+			ret = 0;
+		} else {
+			log_error("plugin: %s already installed (from %s); `grabit plugin remove %s` first",
+					  m.name, src_url[0] ? src_url : "unknown source", m.name);
+		}
 		free(final_dir);
 		goto fail_manifest;
 	}
@@ -279,7 +301,8 @@ int plugin_remove(const char *name) {
 	if (grabit_xasprintf(&plugin_dir, "%s/%s", root, name) != 0) goto out;
 	struct stat st;
 	if (stat(plugin_dir, &st) != 0 || !S_ISDIR(st.st_mode)) {
-		log_error("plugin: %s is not installed", name);
+		log_info("plugin: %s is not installed", name);
+		ret = 0;
 		goto out;
 	}
 	if (grabit_xasprintf(&link_path, "%s/grabit-%s", bin, name) != 0) goto out;
