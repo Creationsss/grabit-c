@@ -615,15 +615,53 @@ static int try_dispatch_plugin(const char *name, int argc, char **argv) {
 
 	plugin_maybe_auto_update(name);
 
-	char **new_argv = calloc((size_t)argc + 1, sizeof *new_argv);
-	if (!new_argv) return -1;
-	new_argv[0] = path;
-	for (int i = 1; i < argc; i++)
-		new_argv[i] = argv[i];
+	bool want_capture = false;
+	for (int i = 1; i < argc; i++) {
+		if (strcmp(argv[i], "--capture") == 0) {
+			want_capture = true;
+			break;
+		}
+	}
+
+	char *captured = NULL;
+	struct config cap_cfg;
+	bool cap_cfg_loaded = false;
+	bool cap_is_temp = false;
+	if (want_capture) {
+		if (config_load(&cap_cfg) != 0) {
+			log_error("plugin: --capture: config_load failed");
+			exit(1);
+		}
+		cap_cfg_loaded = true;
+		struct args ca = {0};
+		captured = capture_to_file(&ca, &cap_cfg, ACTION_OUTPUT, &cap_is_temp, NULL);
+		if (!captured) {
+			config_free(&cap_cfg);
+			exit(1);
+		}
+		log_debug("plugin: captured %s for %s", captured, name);
+	}
+
+	int extra = captured ? 1 : 0;
+	char **new_argv = calloc((size_t)argc + 1 + extra, sizeof *new_argv);
+	if (!new_argv) {
+		if (cap_cfg_loaded) config_free(&cap_cfg);
+		free(captured);
+		return -1;
+	}
+	int o = 0;
+	new_argv[o++] = path;
+	if (captured) new_argv[o++] = captured;
+	for (int i = 1; i < argc; i++) {
+		if (strcmp(argv[i], "--capture") == 0) continue;
+		new_argv[o++] = argv[i];
+	}
 
 	execv(path, new_argv);
 	int err = errno;
 	free(new_argv);
+	if (cap_cfg_loaded) config_free(&cap_cfg);
+	free(captured);
 	log_error("plugin: exec %s: %s", path, strerror(err));
 	return -1;
 }
