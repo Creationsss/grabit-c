@@ -618,7 +618,8 @@ static int try_dispatch_plugin(const char *name, int argc, char **argv) {
 	char **new_argv = calloc((size_t)argc + 1, sizeof *new_argv);
 	if (!new_argv) return -1;
 	new_argv[0] = path;
-	for (int i = 1; i < argc; i++) new_argv[i] = argv[i];
+	for (int i = 1; i < argc; i++)
+		new_argv[i] = argv[i];
 
 	execv(path, new_argv);
 	int err = errno;
