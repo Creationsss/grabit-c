@@ -107,8 +107,9 @@ int plugin_update(const char *name) {
 	}
 
 	if (strcmp(source_kind, "git") == 0) {
-		log_info("plugin: updating %s ...", name);
-		char *const fetch[] = {"git", "-C", plugin_dir, "fetch", "--quiet", "--depth", "1", NULL};
+		log_info("plugin: updating %s (branch %s) ...", name, m.branch);
+		char *const fetch[] = {"git", "-C", plugin_dir, "fetch", "--quiet",
+							   "--depth", "1", "origin", m.branch, NULL};
 		if (plugin_run_in(NULL, fetch) != 0) goto out;
 		char *const reset[] = {"git", "-C", plugin_dir, "reset", "--hard", "FETCH_HEAD", NULL};
 		if (plugin_run_in(NULL, reset) != 0) goto out;
