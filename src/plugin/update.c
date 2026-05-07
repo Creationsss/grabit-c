@@ -8,6 +8,7 @@
 #include "plugin/fetch.h"
 #include "plugin/lock.h"
 #include "plugin/spawn.h"
+#include "plugin/state.h"
 #include "util.h"
 #include "vendor/sha256/sha256.h"
 
@@ -30,22 +31,6 @@ static bool stale(const char *path, int hours) {
 	if (stat(path, &st) != 0) return true;
 	time_t now = time(NULL);
 	return (now - st.st_mtime) > (time_t)hours * 3600;
-}
-
-static int read_source_lines(const char *path, char *kind, size_t kind_cap,
-							 char *url, size_t url_cap, char *sha, size_t sha_cap) {
-	FILE *f = fopen(path, "r");
-	if (!f) return -1;
-	char *lines[3] = {kind, url, sha};
-	size_t caps[3] = {kind_cap, url_cap, sha_cap};
-	for (int i = 0; i < 3; i++) {
-		lines[i][0] = '\0';
-		if (!fgets(lines[i], (int)caps[i], f)) break;
-		char *nl = strchr(lines[i], '\n');
-		if (nl) *nl = '\0';
-	}
-	fclose(f);
-	return kind[0] ? 0 : -1;
 }
 
 static int update_prebuilt(const char *plugin_dir, const char *name,
@@ -104,7 +89,6 @@ int plugin_update(const char *name) {
 
 	char *plugin_dir = NULL;
 	char *manifest_path = NULL;
-	char *source_path = NULL;
 	struct plugin_manifest m = {0};
 	int rc = -1;
 
@@ -112,14 +96,14 @@ int plugin_update(const char *name) {
 	if (grabit_xasprintf(&manifest_path, "%s/manifest.toml", plugin_dir) != 0) goto out;
 	if (plugin_manifest_parse_file(manifest_path, &m) != 0) goto out;
 
-	if (grabit_xasprintf(&source_path, "%s/.source", plugin_dir) != 0) goto out;
-	char source_kind[32] = {0};
-	char source_url[2048] = {0};
-	char source_sha[SHA256_HEX_SIZE] = {0};
-	if (read_source_lines(source_path, source_kind, sizeof source_kind,
+	char source_kind[32];
+	char source_url[2048];
+	char source_sha[SHA256_HEX_SIZE];
+	if (plugin_state_read(plugin_dir, source_kind, sizeof source_kind,
 						  source_url, sizeof source_url,
 						  source_sha, sizeof source_sha) != 0) {
 		strncpy(source_kind, "git", sizeof source_kind - 1);
+		source_kind[sizeof source_kind - 1] = '\0';
 	}
 
 	if (strcmp(source_kind, "git") == 0) {
@@ -146,7 +130,6 @@ out:
 	plugin_manifest_free(&m);
 	free(plugin_dir);
 	free(manifest_path);
-	free(source_path);
 	plugin_lock_release(lock_fd);
 	return rc;
 }

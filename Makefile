@@ -96,6 +96,7 @@ GRABIT_SRCS := \
 	src/region/toolbar_layout.c \
 	src/region/toolbar_icons.c \
 	src/region/color_picker.c \
+	src/region/edit_persist.c \
 	src/util/json_path.c \
 	src/clipboard/clipboard.c \
 	src/clipboard/wlr_data_control.c \
@@ -124,9 +125,11 @@ GRABIT_SRCS := \
 	src/plugin/spawn.c \
 	src/plugin/lock.c \
 	src/plugin/fetch.c \
+	src/plugin/state.c \
 	src/plugin/install.c \
 	src/plugin/update.c \
 	src/plugin/cli.c \
+	src/plugin/dispatch.c \
 	src/ocr/tesseract.c \
 	src/sound/sound.c \
 	src/pin/pin.c \

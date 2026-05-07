@@ -25,7 +25,32 @@ void plugin_manifest_free(struct plugin_manifest *m) {
 	free(m->prebuilt_url);
 	free(m->prebuilt_sha256);
 	free(m->branch);
+	for (size_t i = 0; i < m->n_actions; i++) {
+		free(m->actions[i].name);
+		free(m->actions[i].description);
+	}
+	free(m->actions);
 	memset(m, 0, sizeof *m);
+}
+
+static void parse_actions(toml_table_t *root, struct plugin_manifest *out) {
+	toml_table_t *actions = toml_table_in(root, "actions");
+	if (!actions) return;
+	int n = 0;
+	while (toml_key_in(actions, n) != NULL) n++;
+	if (n <= 0) return;
+	out->actions = calloc((size_t)n, sizeof *out->actions);
+	if (!out->actions) return;
+	for (int i = 0; i < n; i++) {
+		const char *key = toml_key_in(actions, i);
+		toml_table_t *t = toml_table_in(actions, key);
+		out->actions[i].name = strdup(key);
+		if (t) {
+			toml_datum_t d = toml_string_in(t, "description");
+			if (d.ok) out->actions[i].description = d.u.s;
+		}
+	}
+	out->n_actions = (size_t)n;
 }
 
 static char *take_string(toml_table_t *t, const char *key) {
@@ -86,6 +111,8 @@ int plugin_manifest_parse_file(const char *path, struct plugin_manifest *out) {
 		toml_datum_t d = toml_bool_in(capture, "auto");
 		if (d.ok) out->capture_auto = d.u.b;
 	}
+
+	parse_actions(root, out);
 
 	toml_free(root);
 

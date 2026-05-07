@@ -9,6 +9,7 @@
 #include "plugin/fetch.h"
 #include "plugin/lock.h"
 #include "plugin/spawn.h"
+#include "plugin/state.h"
 #include "util.h"
 #include "vendor/sha256/sha256.h"
 
@@ -55,42 +56,6 @@ static char *plugin_name_from_url(const char *url) {
 		return NULL;
 	}
 	return out;
-}
-
-static int write_text_file(const char *path, const char *content) {
-	int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-	if (fd < 0) return -1;
-	size_t len = strlen(content);
-	ssize_t w = write(fd, content, len);
-	close(fd);
-	return ((size_t)w == len) ? 0 : -1;
-}
-
-static int write_source_file(const char *plugin_dir, const char *kind,
-							 const char *url, const char *sha256) {
-	char *path = NULL;
-	if (grabit_xasprintf(&path, "%s/.source", plugin_dir) != 0) return -1;
-	char *content = NULL;
-	int rc = grabit_xasprintf(&content, "%s\n%s\n%s\n", kind, url ? url : "",
-							  sha256 ? sha256 : "");
-	if (rc != 0) {
-		free(path);
-		return -1;
-	}
-	rc = write_text_file(path, content);
-	free(path);
-	free(content);
-	return rc;
-}
-
-int plugin_touch_check(const char *plugin_dir) {
-	char *path = NULL;
-	if (grabit_xasprintf(&path, "%s/.last_check", plugin_dir) != 0) return -1;
-	int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-	free(path);
-	if (fd < 0) return -1;
-	close(fd);
-	return 0;
 }
 
 static int symlink_force(const char *target, const char *link_path) {
@@ -174,23 +139,9 @@ int plugin_install_git(const char *url) {
 	char *final_dir = NULL;
 	if (grabit_xasprintf(&final_dir, "%s/%s", root, m.name) != 0) goto fail_manifest;
 	if (stat(final_dir, &st) == 0) {
-		char *src_path = NULL;
-		char src_kind[32] = {0}, src_url[2048] = {0};
-		if (grabit_xasprintf(&src_path, "%s/.source", final_dir) == 0) {
-			FILE *sf = fopen(src_path, "r");
-			if (sf) {
-				if (fgets(src_kind, sizeof src_kind, sf)) {
-					char *nl = strchr(src_kind, '\n');
-					if (nl) *nl = '\0';
-				}
-				if (fgets(src_url, sizeof src_url, sf)) {
-					char *nl = strchr(src_url, '\n');
-					if (nl) *nl = '\0';
-				}
-				fclose(sf);
-			}
-		}
-		free(src_path);
+		char src_kind[32], src_url[2048], src_sha[65];
+		plugin_state_read(final_dir, src_kind, sizeof src_kind,
+						  src_url, sizeof src_url, src_sha, sizeof src_sha);
 		if (src_url[0] && strcmp(src_url, url) == 0) {
 			log_info("plugin: %s already installed from %s", m.name, url);
 			ret = 0;
@@ -257,9 +208,9 @@ int plugin_install_git(const char *url) {
 	free(link_path);
 
 	if (m.kind == PLUGIN_KIND_PREBUILT) {
-		write_source_file(plugin_dir, "prebuilt", m.prebuilt_url, m.prebuilt_sha256);
+		plugin_state_write(plugin_dir, "prebuilt", m.prebuilt_url, m.prebuilt_sha256);
 	} else {
-		write_source_file(plugin_dir, "git", url, NULL);
+		plugin_state_write(plugin_dir, "git", url, NULL);
 	}
 	plugin_touch_check(plugin_dir);
 

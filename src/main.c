@@ -22,8 +22,10 @@
 #include "ocr/ocr.h"
 #include "paths.h"
 #include "pin/pin.h"
+#include "plugin/dispatch.h"
 #include "plugin/plugin.h"
 #include "record/record.h"
+#include "region/edit_persist.h"
 #include "region/region.h"
 #include "sound/sound.h"
 #include "upload/upload.h"
@@ -158,77 +160,6 @@ static char *build_capture_path(const struct args *a, struct config *cfg,
 	return paths_build_output(cfg, a->filename_tpl, ".png", dest);
 }
 
-static const struct {
-	const char *name;
-	uint32_t hex;
-} EDIT_COLORS[] = {
-	{"red", 0xff3030u},
-	{"yellow", 0xfff030u},
-	{"green", 0x40ff40u},
-	{"blue", 0x4080ffu},
-	{"black", 0x000000u},
-	{"white", 0xffffffu},
-};
-
-static int hex_nybble(char c) {
-	if (c >= '0' && c <= '9') return c - '0';
-	if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-	if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-	return -1;
-}
-
-static uint32_t edit_color_from_str(const char *s) {
-	if (!s || !*s) return 0xff3030u;
-	const char *p = (*s == '#') ? s + 1 : s;
-	size_t len = strlen(p);
-	if (len == 6 || len == 3) {
-		uint32_t v = 0;
-		for (size_t i = 0; i < len; i++) {
-			int d = hex_nybble(p[i]);
-			if (d < 0) goto try_name;
-			v = (v << 4) | (uint32_t)d;
-		}
-		if (len == 3) {
-			uint32_t r = (v >> 8) & 0xf, g = (v >> 4) & 0xf, b = v & 0xf;
-			v = (r << 20) | (r << 16) | (g << 12) | (g << 8) | (b << 4) | b;
-		}
-		return v & 0xFFFFFFu;
-	}
-try_name:
-	for (size_t i = 0; i < sizeof EDIT_COLORS / sizeof EDIT_COLORS[0]; i++) {
-		if (strcmp(EDIT_COLORS[i].name, s) == 0) return EDIT_COLORS[i].hex;
-	}
-	return 0xff3030u;
-}
-
-static void edit_color_to_str(uint32_t hex, char *buf, size_t cap) {
-	snprintf(buf, cap, "#%06X", hex & 0xFFFFFFu);
-}
-
-static int32_t edit_width_from_str(const char *s) {
-	if (!s) return 4;
-	char *end = NULL;
-	long v = strtol(s, &end, 10);
-	if (end == s || v < 1 || v > 20) return 4;
-	return (int32_t)v;
-}
-
-static void persist_edit_choices(struct config *cfg, uint32_t color, int32_t width) {
-	char cn[10];
-	edit_color_to_str(color, cn, sizeof cn);
-	char wn[16];
-	snprintf(wn, sizeof wn, "%d", width);
-	const char *cur_c = config_get(cfg, "edit.color");
-	const char *cur_w = config_get(cfg, "edit.width");
-	bool changed = false;
-	if (!cur_c || strcmp(cur_c, cn) != 0) {
-		if (config_set(cfg, "edit.color", cn) == 0) changed = true;
-	}
-	if (!cur_w || strcmp(cur_w, wn) != 0) {
-		if (config_set(cfg, "edit.width", wn) == 0) changed = true;
-	}
-	if (changed) (void)config_save(cfg);
-}
 
 static char *capture_to_file(const struct args *a, struct config *cfg,
 							 enum action eff, bool *is_temp,
@@ -631,6 +562,7 @@ static int try_dispatch_plugin(const char *name, int argc, char **argv) {
 	if (plugin_resolve(name, path, sizeof path) != 0) return -1;
 
 	plugin_maybe_auto_update(name);
+	plugin_dispatch_set_env(name);
 
 	bool force_capture = false;
 	bool no_capture = false;
@@ -698,7 +630,7 @@ static int try_dispatch_plugin(const char *name, int argc, char **argv) {
 	if (cap_cfg_loaded) config_free(&cap_cfg);
 	free(captured);
 	log_error("plugin: exec %s: %s", path, strerror(err));
-	return -1;
+	return 1;
 }
 
 int main(int argc, char **argv) {
@@ -716,7 +648,17 @@ int main(int argc, char **argv) {
 		if (strcmp(first, "unset") == 0) return cmd_unset(argc - 2, argv + 2);
 		if (strcmp(first, "sxcu") == 0) return cmd_sxcu(argc - 2, argv + 2);
 		if (strcmp(first, "plugin") == 0) return cmd_plugin(argc - 2, argv + 2);
-		if (first[0] != '-' && try_dispatch_plugin(first, argc - 1, argv + 1) == 0) return 0;
+		if (strcmp(first, "-p") == 0) {
+			if (argc < 3) {
+				log_error("usage: grabit -p <plugin> [args]");
+				return 1;
+			}
+			return plugin_dispatch_pin(argv[2], argc - 2, argv + 2);
+		}
+		if (first[0] != '-') {
+			int prc = try_dispatch_plugin(first, argc - 1, argv + 1);
+			if (prc >= 0) return prc;
+		}
 	}
 
 	struct args a;

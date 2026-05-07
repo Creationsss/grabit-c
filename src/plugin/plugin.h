@@ -12,6 +12,11 @@ enum plugin_kind {
 	PLUGIN_KIND_PREBUILT,
 };
 
+struct plugin_action {
+	char *name;
+	char *description;
+};
+
 struct plugin_manifest {
 	char *name;
 	char *description;
@@ -24,6 +29,8 @@ struct plugin_manifest {
 	int update_check_hours;
 	char *branch;
 	bool capture_auto;
+	struct plugin_action *actions;
+	size_t n_actions;
 };
 
 void plugin_manifest_free(struct plugin_manifest *m);
