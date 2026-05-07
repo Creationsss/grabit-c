@@ -11,7 +11,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
-#include <sys/types.h>
 
 static int usage(void) {
 	log_error("usage: grabit plugin <install|list|show|update|remove> [args]");

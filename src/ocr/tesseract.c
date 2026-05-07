@@ -8,9 +8,7 @@
 #include "util.h"
 
 #include <errno.h>
-#include <fcntl.h>
 #include <signal.h>
-#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/wait.h>

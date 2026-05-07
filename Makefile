@@ -27,28 +27,9 @@ CFLAGS  += -std=c17 $(WARN) $(HARDEN) \
 LDFLAGS ?=
 LDLIBS  ?=
 
-HAVE_BASU       := $(shell $(PKG_CONFIG) --exists basu       && echo 1)
-HAVE_ELOGIND    := $(shell $(PKG_CONFIG) --exists libelogind  && echo 1)
-HAVE_LIBSYSTEMD := $(shell $(PKG_CONFIG) --exists libsystemd  && echo 1)
+PKGS_CORE := json-c libcurl wayland-client wayland-cursor cairo xkbcommon dbus-1
 
-ifeq ($(HAVE_BASU),1)
-BUS_PKG    := basu
-BUS_DEFINE := -DGRABIT_BUS_BASU
-else ifeq ($(HAVE_ELOGIND),1)
-BUS_PKG    := libelogind
-BUS_DEFINE := -DGRABIT_BUS_ELOGIND
-else ifeq ($(HAVE_LIBSYSTEMD),1)
-BUS_PKG    := libsystemd
-BUS_DEFINE :=
-else
-$(warning no sd-bus impl found; install basu-devel (Void / non-systemd), libelogind-devel, or libsystemd-devel)
-BUS_PKG    :=
-BUS_DEFINE :=
-endif
-
-PKGS_CORE := json-c libcurl wayland-client wayland-cursor cairo xkbcommon $(BUS_PKG)
-
-CFLAGS    += $(BUS_DEFINE) $(shell $(PKG_CONFIG) --cflags $(PKGS_CORE)) -pthread
+CFLAGS    += $(shell $(PKG_CONFIG) --cflags $(PKGS_CORE)) -pthread
 LDLIBS    += $(shell $(PKG_CONFIG) --libs   $(PKGS_CORE)) -lmagic -lrt -lm -pthread
 
 WL_PROTOCOLS := \
@@ -104,7 +85,7 @@ GRABIT_SRCS := \
 	src/util/json_path.c \
 	src/clipboard/clipboard.c \
 	src/clipboard/wlr_data_control.c \
-	src/notify/sd_bus.c \
+	src/notify/dbus.c \
 	src/region/wlr_layer.c \
 	src/region/wlr_render.c \
 	src/region/wlr_input.c \

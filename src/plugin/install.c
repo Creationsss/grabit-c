@@ -14,13 +14,11 @@
 #include "vendor/sha256/sha256.h"
 
 #include <errno.h>
-#include <fcntl.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
-#include <sys/types.h>
 #include <unistd.h>
 
 static int git_clone(const char *url, const char *dst) {
