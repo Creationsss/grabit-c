@@ -119,6 +119,14 @@ GRABIT_SRCS := \
 	src/upload/sxcu_upload.c \
 	src/upload/sxcu_dir.c \
 	src/upload/sxcu_cli.c \
+	src/plugin/manifest.c \
+	src/plugin/paths.c \
+	src/plugin/spawn.c \
+	src/plugin/lock.c \
+	src/plugin/fetch.c \
+	src/plugin/install.c \
+	src/plugin/update.c \
+	src/plugin/cli.c \
 	src/ocr/tesseract.c \
 	src/sound/sound.c \
 	src/pin/pin.c \
@@ -127,7 +135,8 @@ GRABIT_SRCS := \
 	src/pin/pin_ipc.c
 
 GRABIT_VENDOR_SRCS := \
-	src/vendor/tomlc99/toml.c
+	src/vendor/tomlc99/toml.c \
+	src/vendor/sha256/sha256.c
 
 GRABIT_OBJS := $(GRABIT_SRCS:%.c=$(BUILDDIR)/%.o) \
                $(GRABIT_VENDOR_SRCS:%.c=$(BUILDDIR)/%.o) \

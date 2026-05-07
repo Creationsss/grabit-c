@@ -3,6 +3,7 @@
 
 #define _XOPEN_SOURCE 700
 
+#include <errno.h>
 #include <signal.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -21,6 +22,7 @@
 #include "ocr/ocr.h"
 #include "paths.h"
 #include "pin/pin.h"
+#include "plugin/plugin.h"
 #include "record/record.h"
 #include "region/region.h"
 #include "sound/sound.h"
@@ -105,6 +107,15 @@ static int print_help(void) {
 		"  sxcu list         Show registered uploaders\n"
 		"  sxcu show <name>  Print parsed fields\n"
 		"  sxcu rm <name>    Remove an uploader\n"
+		"\n"
+		"Plugins:\n"
+		"  plugin install <git-url>  Clone, build, and install a plugin\n"
+		"  plugin list               List installed plugins\n"
+		"  plugin show <name>        Print parsed manifest\n"
+		"  plugin update [<name>]    Update one plugin or all\n"
+		"  plugin remove <name>      Uninstall a plugin\n"
+		"  <name> ...                Run installed plugin `grabit-<name>`\n"
+		"                            (auto-updates in background per manifest)\n"
 		"\n"
 		"Filename templates (--filename or `filename` config key):\n"
 		"  %Y %m %d %H %M %S strftime fields\n"
@@ -597,6 +608,25 @@ static int run(const struct args *a) {
 	return rc;
 }
 
+static int try_dispatch_plugin(const char *name, int argc, char **argv) {
+	if (!plugin_name_is_valid(name)) return -1;
+	char path[1024];
+	if (plugin_resolve(name, path, sizeof path) != 0) return -1;
+
+	plugin_maybe_auto_update(name);
+
+	char **new_argv = calloc((size_t)argc + 1, sizeof *new_argv);
+	if (!new_argv) return -1;
+	new_argv[0] = path;
+	for (int i = 1; i < argc; i++) new_argv[i] = argv[i];
+
+	execv(path, new_argv);
+	int err = errno;
+	free(new_argv);
+	log_error("plugin: exec %s: %s", path, strerror(err));
+	return -1;
+}
+
 int main(int argc, char **argv) {
 	bool pre_silent = false, pre_debug = false;
 	args_pre_scan(argc, argv, &pre_silent, &pre_debug);
@@ -611,6 +641,8 @@ int main(int argc, char **argv) {
 		if (strcmp(first, "get") == 0) return cmd_get(argc - 2, argv + 2);
 		if (strcmp(first, "unset") == 0) return cmd_unset(argc - 2, argv + 2);
 		if (strcmp(first, "sxcu") == 0) return cmd_sxcu(argc - 2, argv + 2);
+		if (strcmp(first, "plugin") == 0) return cmd_plugin(argc - 2, argv + 2);
+		if (first[0] != '-' && try_dispatch_plugin(first, argc - 1, argv + 1) == 0) return 0;
 	}
 
 	struct args a;
