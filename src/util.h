@@ -53,4 +53,8 @@ void grabit_buf_free(struct grabit_buf *b);
 
 int grabit_read_file(const char *path, size_t max_bytes, char **out, size_t *out_len);
 
+void grabit_install_signal_handler(int sig, void (*handler)(int));
+void grabit_ignore_signal(int sig);
+void grabit_double_fork_detach(void);
+
 #endif

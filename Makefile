@@ -81,8 +81,12 @@ GRABIT_SRCS := \
 	src/log.c \
 	src/paths.c \
 	src/util.c \
+	src/cursor.c \
 	src/config.c \
+	src/config_save.c \
+	src/config_schema.c \
 	src/config_cli.c \
+	src/config_cli_help.c \
 	src/template.c \
 	src/hyprland.c \
 	src/mime.c \

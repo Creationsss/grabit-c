@@ -4,6 +4,7 @@
 #define _XOPEN_SOURCE 700
 #include "record/overlay.h"
 
+#include "cairo_util.h"
 #include "region/region.h"
 #include "util.h"
 #include "wl.h"
@@ -61,13 +62,9 @@ static int alloc_buffer(struct overlay_output *o) {
 }
 
 static void draw_border(struct overlay_output *o) {
-	cairo_surface_t *surf = cairo_image_surface_create_for_data(
-		o->buf_data, CAIRO_FORMAT_ARGB32, o->pixel_width, o->pixel_height,
-		o->pixel_width * 4);
-	if (cairo_surface_status(surf) != CAIRO_STATUS_SUCCESS) {
-		cairo_surface_destroy(surf);
-		return;
-	}
+	cairo_surface_t *surf = grabit_cairo_image_argb(o->buf_data, o->pixel_width,
+													o->pixel_height, o->pixel_width * 4);
+	if (!surf) return;
 	cairo_t *cr = cairo_create(surf);
 
 	cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
@@ -199,10 +196,7 @@ struct overlay_state *overlay_start(struct grabit_wl_state *s, struct rect r) {
 			o->layer_surface,
 			ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_NONE);
 
-		struct wl_region *empty = wl_compositor_create_region(s->compositor);
-		wl_surface_set_input_region(o->surface, empty);
-		wl_region_destroy(empty);
-
+		grabit_wl_clear_input_region(s->compositor, o->surface);
 		wl_surface_commit(o->surface);
 	}
 

@@ -4,6 +4,7 @@
 #define _XOPEN_SOURCE 700
 #include "region/region.h"
 
+#include "cursor.h"
 #include "log.h"
 #include "region/annotate.h"
 #include "region/wlr_state.h"
@@ -74,19 +75,11 @@ int region_select(struct grabit_wl_state *s, const struct image *frozen,
 	for (size_t i = 0; i < s->n_outputs; i++) {
 		if (s->outputs[i]->scale > max_scale) max_scale = s->outputs[i]->scale;
 	}
-	const char *theme_name = getenv("XCURSOR_THEME");
-	int32_t theme_size = 24;
-	const char *size_env = getenv("XCURSOR_SIZE");
-	if (size_env && *size_env) {
-		char *end = NULL;
-		long v = strtol(size_env, &end, 10);
-		if (end != size_env && v >= 8 && v <= 256) theme_size = (int32_t)v;
-	}
-	st.cursor_theme = wl_cursor_theme_load(theme_name, theme_size * max_scale, s->shm);
+	st.cursor_theme = grabit_cursor_theme_load(s->shm, max_scale);
 	if (!st.cursor_theme) {
 		log_warn("region: no cursor theme found; cursor may be invisible");
 	} else {
-		const char *cross_names[] = {
+		static const char *const cross_names[] = {
 			"crosshair",
 			"tcross",
 			"cross",
@@ -96,29 +89,20 @@ int region_select(struct grabit_wl_state *s, const struct image *frozen,
 			"arrow",
 			NULL,
 		};
-		for (size_t i = 0; cross_names[i] && !st.cursor; i++) {
-			st.cursor = wl_cursor_theme_get_cursor(st.cursor_theme, cross_names[i]);
-		}
-		const char *text_names[] = {
+		static const char *const text_names[] = {
 			"text",
 			"xterm",
 			"ibeam",
 			"left_ptr",
 			NULL,
 		};
-		for (size_t i = 0; text_names[i] && !st.cursor_text; i++) {
-			st.cursor_text = wl_cursor_theme_get_cursor(st.cursor_theme, text_names[i]);
-		}
-		const char *default_names[] = {
+		static const char *const default_names[] = {
 			"left_ptr",
 			"default",
 			"arrow",
 			NULL,
 		};
-		for (size_t i = 0; default_names[i] && !st.cursor_default; i++) {
-			st.cursor_default = wl_cursor_theme_get_cursor(st.cursor_theme, default_names[i]);
-		}
-		const char *move_names[] = {
+		static const char *const move_names[] = {
 			"fleur",
 			"move",
 			"grabbing",
@@ -127,10 +111,7 @@ int region_select(struct grabit_wl_state *s, const struct image *frozen,
 			"left_ptr",
 			NULL,
 		};
-		for (size_t i = 0; move_names[i] && !st.cursor_move; i++) {
-			st.cursor_move = wl_cursor_theme_get_cursor(st.cursor_theme, move_names[i]);
-		}
-		const char *hand_names[] = {
+		static const char *const hand_names[] = {
 			"pointer",
 			"hand2",
 			"pointing_hand",
@@ -139,24 +120,23 @@ int region_select(struct grabit_wl_state *s, const struct image *frozen,
 			"left_ptr",
 			NULL,
 		};
-		for (size_t i = 0; hand_names[i] && !st.cursor_hand; i++) {
-			st.cursor_hand = wl_cursor_theme_get_cursor(st.cursor_theme, hand_names[i]);
-		}
-		static const char *resize_names[8][6] = {
-			{"nw-resize", "top_left_corner", "size_fdiag", NULL, NULL, NULL},
-			{"n-resize", "top_side", "size_ver", NULL, NULL, NULL},
-			{"ne-resize", "top_right_corner", "size_bdiag", NULL, NULL, NULL},
-			{"e-resize", "right_side", "size_hor", NULL, NULL, NULL},
-			{"se-resize", "bottom_right_corner", "size_fdiag", NULL, NULL, NULL},
-			{"s-resize", "bottom_side", "size_ver", NULL, NULL, NULL},
-			{"sw-resize", "bottom_left_corner", "size_bdiag", NULL, NULL, NULL},
-			{"w-resize", "left_side", "size_hor", NULL, NULL, NULL},
+		static const char *const resize_names[8][4] = {
+			{"nw-resize", "top_left_corner", "size_fdiag", NULL},
+			{"n-resize", "top_side", "size_ver", NULL},
+			{"ne-resize", "top_right_corner", "size_bdiag", NULL},
+			{"e-resize", "right_side", "size_hor", NULL},
+			{"se-resize", "bottom_right_corner", "size_fdiag", NULL},
+			{"s-resize", "bottom_side", "size_ver", NULL},
+			{"sw-resize", "bottom_left_corner", "size_bdiag", NULL},
+			{"w-resize", "left_side", "size_hor", NULL},
 		};
+		st.cursor = grabit_cursor_load_first(st.cursor_theme, cross_names);
+		st.cursor_text = grabit_cursor_load_first(st.cursor_theme, text_names);
+		st.cursor_default = grabit_cursor_load_first(st.cursor_theme, default_names);
+		st.cursor_move = grabit_cursor_load_first(st.cursor_theme, move_names);
+		st.cursor_hand = grabit_cursor_load_first(st.cursor_theme, hand_names);
 		for (size_t i = 0; i < 8; i++) {
-			for (size_t j = 0; resize_names[i][j] && !st.cursor_resize[i]; j++) {
-				st.cursor_resize[i] = wl_cursor_theme_get_cursor(
-					st.cursor_theme, resize_names[i][j]);
-			}
+			st.cursor_resize[i] = grabit_cursor_load_first(st.cursor_theme, resize_names[i]);
 		}
 		if (!st.cursor) log_warn("region: cursor theme has no usable cursor");
 	}
@@ -293,10 +273,7 @@ loop_done:;
 
 	for (size_t i = 0; i < st.n_outs; i++) {
 		struct ro_output *o = &st.outs[i];
-		if (o->frame_cb) {
-			wl_callback_destroy(o->frame_cb);
-			o->frame_cb = NULL;
-		}
+		grabit_wl_callback_drop(&o->frame_cb);
 		if (o->surface && o->buffer) {
 			wl_surface_attach(o->surface, NULL, 0, 0);
 			wl_surface_commit(o->surface);
@@ -311,6 +288,8 @@ loop_done:;
 		if (o->surface) wl_surface_destroy(o->surface);
 	}
 	free(st.outs);
+
+	region_color_picker_release_cache(&st);
 
 	if (st.cursor_surface) wl_surface_destroy(st.cursor_surface);
 	if (st.cursor_theme) wl_cursor_theme_destroy(st.cursor_theme);

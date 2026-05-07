@@ -85,18 +85,21 @@ static int fsync_dir(const char *path) {
 int paths_atomic_write(const char *path, const void *buf, size_t len) {
 	char *path_copy = strdup(path);
 	if (!path_copy) return -1;
-	char *dir = dirname(path_copy);
+	const char *dir = dirname(path_copy);
 
 	char tmpl[4096];
 	int n = snprintf(tmpl, sizeof tmpl, "%s/.grabit.XXXXXX", dir);
-	free(path_copy);
 	if (n < 0 || (size_t)n >= sizeof tmpl) {
+		free(path_copy);
 		errno = ENAMETOOLONG;
 		return -1;
 	}
 
 	int fd = mkstemp(tmpl);
-	if (fd < 0) return -1;
+	if (fd < 0) {
+		free(path_copy);
+		return -1;
+	}
 
 	const char *p = buf;
 	size_t left = len;
@@ -120,19 +123,17 @@ int paths_atomic_write(const char *path, const void *buf, size_t len) {
 
 	if (rename(tmpl, path) != 0) goto fail;
 
-	char *path_copy2 = strdup(path);
-	if (path_copy2) {
-		if (fsync_dir(dirname(path_copy2)) != 0) {
-			log_warn("dirsync(%s): %s", path, strerror(errno));
-		}
-		free(path_copy2);
+	if (fsync_dir(dir) != 0) {
+		log_warn("dirsync(%s): %s", path, strerror(errno));
 	}
+	free(path_copy);
 	return 0;
 
 fail: {
 	int saved = errno;
 	if (fd >= 0) close(fd);
 	unlink(tmpl);
+	free(path_copy);
 	errno = saved;
 	return -1;
 }
@@ -144,22 +145,17 @@ static char *resolve_dir(struct config *cfg, enum paths_dest dest) {
 	const char *d = config_get(cfg, "save_dir");
 	if (d && d[0]) return strdup(d);
 
+	const char *home = getenv("HOME");
+	const char *fallback = "Pictures";
 	if (dest == PATHS_DEST_VIDEOS) {
 		const char *xdg = getenv("XDG_VIDEOS_DIR");
 		if (xdg && xdg[0]) return strdup(xdg);
-		const char *home = getenv("HOME");
-		if (home && home[0]) {
-			char *out = NULL;
-			(void)grabit_xasprintf(&out, "%s/Videos", home);
-			if (out) return out;
-		}
-	} else {
-		const char *home = getenv("HOME");
-		if (home && home[0]) {
-			char *out = NULL;
-			(void)grabit_xasprintf(&out, "%s/Pictures", home);
-			if (out) return out;
-		}
+		fallback = "Videos";
+	}
+	if (home && home[0]) {
+		char *out = NULL;
+		(void)grabit_xasprintf(&out, "%s/%s", home, fallback);
+		if (out) return out;
 	}
 	return strdup("/tmp");
 }

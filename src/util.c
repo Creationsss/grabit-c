@@ -264,3 +264,24 @@ bool grabit_is_grabit_process(pid_t pid) {
 	if (strncmp(base, "grabit", 6) != 0) return false;
 	return base[6] == '\0' || base[6] == '-';
 }
+
+void grabit_install_signal_handler(int sig, void (*handler)(int)) {
+	struct sigaction sa = {0};
+	sa.sa_handler = handler;
+	sigemptyset(&sa.sa_mask);
+	sigaction(sig, &sa, NULL);
+}
+
+void grabit_ignore_signal(int sig) {
+	struct sigaction sa = {0};
+	sa.sa_handler = SIG_IGN;
+	sigemptyset(&sa.sa_mask);
+	sigaction(sig, &sa, NULL);
+}
+
+void grabit_double_fork_detach(void) {
+	pid_t gp = fork();
+	if (gp < 0) _exit(2);
+	if (gp != 0) _exit(0);
+	setsid();
+}

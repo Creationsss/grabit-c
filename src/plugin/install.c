@@ -33,13 +33,8 @@ static int run_shell(const char *cwd, const char *cmd) {
 	return plugin_run_in(cwd, argv);
 }
 
-static const char *url_basename(const char *url) {
-	const char *s = strrchr(url, '/');
-	return s ? s + 1 : url;
-}
-
 static char *plugin_name_from_url(const char *url) {
-	const char *base = url_basename(url);
+	const char *base = grabit_basename(url);
 	if (!base[0]) return NULL;
 	char *out = strdup(base);
 	if (!out) return NULL;

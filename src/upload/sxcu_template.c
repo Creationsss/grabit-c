@@ -50,11 +50,6 @@ static char *base64_encode(const char *src) {
 	return out;
 }
 
-static const char *basename_of(const char *path) {
-	const char *s = strrchr(path, '/');
-	return s ? s + 1 : path;
-}
-
 static char *first_pipe_part(const char *arg) {
 	const char *bar = strchr(arg, '|');
 	return bar ? strndup(arg, (size_t)(bar - arg)) : strdup(arg);
@@ -181,7 +176,7 @@ static char *do_header(const char *arg, struct ctx *c) {
 
 static char *expand_token(const char *name, const char *arg, struct ctx *c) {
 	if (strcmp(name, "filename") == 0)
-		return strdup(c->file_path ? basename_of(c->file_path) : "");
+		return strdup(c->file_path ? grabit_basename(c->file_path) : "");
 	if (strcmp(name, "input") == 0) return strdup("");
 	if (strcmp(name, "base64") == 0) return base64_encode(arg ? arg : "");
 	if ((strcmp(name, "random") == 0 || strcmp(name, "select") == 0) && arg)

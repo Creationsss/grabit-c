@@ -40,6 +40,14 @@ static const struct service SERVICES[] = {
 };
 static const size_t N_SERVICES = sizeof SERVICES / sizeof SERVICES[0];
 
+static void build_auth_keys(const char *service, char *env_key, size_t env_cap,
+							char *cfg_key, size_t cfg_cap) {
+	snprintf(env_key, env_cap, "GRABIT_%s_AUTH", service);
+	for (char *p = env_key + 7; *p; p++)
+		*p = (char)toupper((unsigned char)*p);
+	snprintf(cfg_key, cfg_cap, "services.%s.auth", service);
+}
+
 static const struct service *find_service(const char *name) {
 	for (size_t i = 0; i < N_SERVICES; i++) {
 		if (strcmp(SERVICES[i].name, name) == 0) return &SERVICES[i];
@@ -74,13 +82,9 @@ int upload_preflight(struct config *cfg, const struct args *a, const char **serv
 		return -1;
 	}
 
-	char env_key[64];
-	snprintf(env_key, sizeof env_key, "GRABIT_%s_AUTH", service);
-	for (char *p = env_key + 7; *p; p++)
-		*p = (char)toupper((unsigned char)*p);
+	char env_key[64], cfg_key[64];
+	build_auth_keys(service, env_key, sizeof env_key, cfg_key, sizeof cfg_key);
 	const char *env_auth = getenv(env_key);
-	char cfg_key[64];
-	snprintf(cfg_key, sizeof cfg_key, "services.%s.auth", service);
 	const char *cfg_auth = config_get(cfg, cfg_key);
 	if ((!env_auth || !env_auth[0]) && (!cfg_auth || !cfg_auth[0])) {
 		log_error("no auth token for %s.", service);
@@ -215,14 +219,9 @@ int upload_perform(const char *service_name, const char *file_path,
 		}
 	}
 
-	char env_key[64];
-	snprintf(env_key, sizeof env_key, "GRABIT_%s_AUTH", svc->name);
-	for (char *p = env_key + 7; *p; p++)
-		*p = (char)toupper((unsigned char)*p);
+	char env_key[64], cfg_key[64];
+	build_auth_keys(svc->name, env_key, sizeof env_key, cfg_key, sizeof cfg_key);
 	const char *auth = getenv(env_key);
-
-	char cfg_key[64];
-	snprintf(cfg_key, sizeof cfg_key, "services.%s.auth", svc->name);
 	if (!auth || !auth[0]) auth = config_get(cfg, cfg_key);
 
 	if (!auth || !auth[0]) {

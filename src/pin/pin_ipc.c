@@ -2,9 +2,11 @@
 // Copyright (C) 2026 creations
 
 #define _XOPEN_SOURCE 700
+#include "pin/pin.h"
 #include "pin/pin_state.h"
 
 #include "log.h"
+#include "notify/notify.h"
 #include "util.h"
 
 #include <dirent.h>
@@ -173,4 +175,31 @@ int pin_ipc_broadcast(const char *msg) {
 	close(fd);
 	closedir(d);
 	return sent;
+}
+
+int pin_grab(void) {
+	int n = pin_ipc_broadcast("grab\n");
+	if (n < 0) return 1;
+	log_debug("pin: grab → %d pin(s)", n);
+	return 0;
+}
+
+int pin_release(void) {
+	int n = pin_ipc_broadcast("release\n");
+	if (n < 0) return 1;
+	log_debug("pin: release → %d pin(s)", n);
+	return 0;
+}
+
+int pin_close_all(void) {
+	int n = pin_ipc_broadcast("close\n");
+	if (n < 0) return 1;
+	log_info("pin: closed %d pin(s)", n);
+	char body[64];
+	snprintf(body, sizeof body, "%d pin%s closed", n, n == 1 ? "" : "s");
+	notify_send(&(struct notify_opts){
+		.summary = "grabit",
+		.body = body,
+	});
+	return 0;
 }

@@ -11,3 +11,4 @@ core.*
 vgcore.*
 *.log
 .DS_Store
+/tools/smoke.sh

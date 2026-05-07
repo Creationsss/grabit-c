@@ -80,8 +80,7 @@ void grabit_sound_play(struct config *cfg) {
 	pid_t pid = fork();
 	if (pid < 0) return;
 	if (pid == 0) {
-		if (fork() != 0) _exit(0);
-		setsid();
+		grabit_double_fork_detach();
 		grabit_redirect_stdio_devnull();
 		char *argv[] = {(char *)player, (char *)file, NULL};
 		execvp(player, argv);

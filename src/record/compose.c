@@ -3,6 +3,7 @@
 
 #include "record/compose.h"
 
+#include "cairo_util.h"
 #include "capture/capture.h"
 #include "log.h"
 #include "region/region.h"
@@ -122,12 +123,10 @@ int rec_layout_capture_compose(struct grabit_wl_state *s, struct rec_layout *lay
 	if (!fully_tiled)
 		memset(dst_buf, 0, (size_t)layout->dst_stride * (size_t)layout->dst_h);
 
-	cairo_surface_t *dst = cairo_image_surface_create_for_data(
-		dst_buf, CAIRO_FORMAT_ARGB32, layout->dst_w, layout->dst_h, layout->dst_stride);
-	if (cairo_surface_status(dst) != CAIRO_STATUS_SUCCESS) {
-		log_error("compose: dst surface: %s",
-				  cairo_status_to_string(cairo_surface_status(dst)));
-		cairo_surface_destroy(dst);
+	cairo_surface_t *dst = grabit_cairo_image_argb(dst_buf, layout->dst_w,
+												   layout->dst_h, layout->dst_stride);
+	if (!dst) {
+		log_error("compose: dst surface failed");
 		return -1;
 	}
 	cairo_t *cr = cairo_create(dst);
@@ -151,12 +150,9 @@ int rec_layout_capture_compose(struct grabit_wl_state *s, struct rec_layout *lay
 		captured++;
 
 		cairo_format_t fmt = grabit_cairo_format_for_shm(fmt_raw);
-		cairo_surface_t *src = cairo_image_surface_create_for_data(
-			layout->slice_scratch, fmt, sl->src_w, sl->src_h, scratch_stride);
-		if (cairo_surface_status(src) != CAIRO_STATUS_SUCCESS) {
-			cairo_surface_destroy(src);
-			continue;
-		}
+		cairo_surface_t *src = grabit_cairo_image(layout->slice_scratch, fmt,
+												  sl->src_w, sl->src_h, scratch_stride);
+		if (!src) continue;
 
 		int32_t visible_w = grabit_wl_transform_swaps(sl->out->transform) ? sl->src_h : sl->src_w;
 		int32_t visible_h = grabit_wl_transform_swaps(sl->out->transform) ? sl->src_w : sl->src_h;

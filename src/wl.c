@@ -176,7 +176,10 @@ static void registry_global(void *data, struct wl_registry *reg, uint32_t name,
 
 	if (strcmp(interface, wl_output_interface.name) == 0) {
 		struct grabit_output *o = calloc(1, sizeof *o);
-		if (!o) return;
+		if (!o) {
+			log_warn("wl: oom allocating output %u; skipping", name);
+			return;
+		}
 		o->state = s;
 		o->scale = 1;
 		o->global_name = name;
@@ -393,4 +396,17 @@ bool grabit_output_rect_intersect(const struct grabit_output *o, const struct re
 	if (out_w) *out_w = iw;
 	if (out_h) *out_h = ih;
 	return true;
+}
+
+void grabit_wl_clear_input_region(struct wl_compositor *c, struct wl_surface *s) {
+	if (!c || !s) return;
+	struct wl_region *r = wl_compositor_create_region(c);
+	wl_surface_set_input_region(s, r);
+	wl_region_destroy(r);
+}
+
+void grabit_wl_callback_drop(struct wl_callback **cb) {
+	if (!cb || !*cb) return;
+	wl_callback_destroy(*cb);
+	*cb = NULL;
 }

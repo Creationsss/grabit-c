@@ -5,6 +5,8 @@
 #include "region/toolbar_internal.h"
 #include "region/wlr_state.h"
 
+#include "cairo_util.h"
+
 #include "wl.h"
 
 #include <stdbool.h>
@@ -174,8 +176,8 @@ bool region_color_picker_pick(const struct ro_state *st, int32_t abs_x, int32_t 
 	return true;
 }
 
-static void render_grid(cairo_t *cr, int32_t S, double dx, double dy, double dw, double dh) {
-	cairo_pattern_t *rainbow = cairo_pattern_create_linear(dx, 0, dx + dw, 0);
+static void picker_patterns_build(struct ro_state *st, int32_t dw, int32_t dh) {
+	cairo_pattern_t *rainbow = cairo_pattern_create_linear(0, 0, dw, 0);
 	static const int N_HUE_STOPS = 6;
 	for (int i = 0; i <= N_HUE_STOPS; i++) {
 		double frac = (double)i / (double)N_HUE_STOPS;
@@ -183,28 +185,56 @@ static void render_grid(cairo_t *cr, int32_t S, double dx, double dy, double dw,
 		hsl_to_rgb(frac * 360.0, 1.0, 0.5, &rd, &gd, &bd);
 		cairo_pattern_add_color_stop_rgb(rainbow, frac, rd, gd, bd);
 	}
-	cairo_set_source(cr, rainbow);
-	cairo_rectangle(cr, dx, dy, dw, dh);
-	cairo_fill(cr);
-	cairo_pattern_destroy(rainbow);
-
-	double mid_y = dy + dh * 0.5;
-
-	cairo_pattern_t *top = cairo_pattern_create_linear(0, dy, 0, mid_y);
+	double mid = dh * 0.5;
+	cairo_pattern_t *top = cairo_pattern_create_linear(0, 0, 0, mid);
 	cairo_pattern_add_color_stop_rgba(top, 0.0, 1, 1, 1, 1);
 	cairo_pattern_add_color_stop_rgba(top, 1.0, 1, 1, 1, 0);
-	cairo_set_source(cr, top);
-	cairo_rectangle(cr, dx, dy, dw, dh * 0.5);
-	cairo_fill(cr);
-	cairo_pattern_destroy(top);
-
-	cairo_pattern_t *bot = cairo_pattern_create_linear(0, mid_y, 0, dy + dh);
+	cairo_pattern_t *bot = cairo_pattern_create_linear(0, mid, 0, dh);
 	cairo_pattern_add_color_stop_rgba(bot, 0.0, 0, 0, 0, 0);
 	cairo_pattern_add_color_stop_rgba(bot, 1.0, 0, 0, 0, 1);
-	cairo_set_source(cr, bot);
-	cairo_rectangle(cr, dx, mid_y, dw, dh * 0.5);
+	st->picker_rainbow_pat = rainbow;
+	st->picker_top_pat = top;
+	st->picker_bot_pat = bot;
+	st->picker_pat_dw = dw;
+	st->picker_pat_dh = dh;
+}
+
+static void picker_patterns_destroy(struct ro_state *st) {
+	if (st->picker_rainbow_pat) cairo_pattern_destroy(st->picker_rainbow_pat);
+	if (st->picker_top_pat) cairo_pattern_destroy(st->picker_top_pat);
+	if (st->picker_bot_pat) cairo_pattern_destroy(st->picker_bot_pat);
+	st->picker_rainbow_pat = st->picker_top_pat = st->picker_bot_pat = NULL;
+	st->picker_pat_dw = st->picker_pat_dh = 0;
+}
+
+void region_color_picker_release_cache(struct ro_state *st) {
+	picker_patterns_destroy(st);
+}
+
+static void render_grid(cairo_t *cr, struct ro_state *st, int32_t S,
+						double dx, double dy, double dw, double dh) {
+	int32_t idw = (int32_t)dw, idh = (int32_t)dh;
+	if (st->picker_pat_dw != idw || st->picker_pat_dh != idh) {
+		picker_patterns_destroy(st);
+		picker_patterns_build(st, idw, idh);
+	}
+
+	cairo_matrix_t m;
+	cairo_matrix_init_translate(&m, -dx, -dy);
+	cairo_pattern_set_matrix(st->picker_rainbow_pat, &m);
+	cairo_set_source(cr, st->picker_rainbow_pat);
+	cairo_rectangle(cr, dx, dy, dw, dh);
 	cairo_fill(cr);
-	cairo_pattern_destroy(bot);
+
+	cairo_pattern_set_matrix(st->picker_top_pat, &m);
+	cairo_set_source(cr, st->picker_top_pat);
+	cairo_rectangle(cr, dx, dy, dw, dh * 0.5);
+	cairo_fill(cr);
+
+	cairo_pattern_set_matrix(st->picker_bot_pat, &m);
+	cairo_set_source(cr, st->picker_bot_pat);
+	cairo_rectangle(cr, dx, dy + dh * 0.5, dw, dh * 0.5);
+	cairo_fill(cr);
 
 	cairo_set_source_rgba(cr, 1, 1, 1, 0.25);
 	cairo_set_line_width(cr, (double)S);
@@ -237,10 +267,7 @@ static void render_input(cairo_t *cr, const struct ro_output *o, int32_t S) {
 	double sx = dix + (double)COLOR_PICKER_SWATCH_PAD_X * S;
 	double sy = diy + (double)COLOR_PICKER_SWATCH_PAD_Y * S;
 	uint32_t cur = o->st->current_color;
-	cairo_set_source_rgba(cr,
-						  ((cur >> 16) & 0xff) / 255.0,
-						  ((cur >> 8) & 0xff) / 255.0,
-						  (cur & 0xff) / 255.0, 1);
+	grabit_cairo_set_source_argb(cr, cur, 1);
 	cairo_rectangle(cr, sx, sy, sw, sw);
 	cairo_fill(cr);
 	cairo_set_source_rgba(cr, 1, 1, 1, 0.35);
@@ -332,7 +359,7 @@ void region_color_picker_render(cairo_t *cr, const struct ro_output *o) {
 	cairo_rectangle(cr, bg_x, bg_y, bg_w, bg_h);
 	cairo_fill(cr);
 
-	render_grid(cr, S, dx, dy, dw, dh);
+	render_grid(cr, o->st, S, dx, dy, dw, dh);
 	render_input(cr, o, S);
 	render_eyedropper_btn(cr, o, S);
 

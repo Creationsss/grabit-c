@@ -6,6 +6,7 @@
 
 #include "log.h"
 #include "util.h"
+#include "util/json_path.h"
 
 #include <errno.h>
 #include <stdbool.h>
@@ -71,14 +72,6 @@ static int read_all(int fd, struct grabit_buf *out) {
 	}
 }
 
-static char *json_str_dup(struct json_object *obj, const char *key) {
-	struct json_object *v;
-	if (!json_object_object_get_ex(obj, key, &v)) return NULL;
-	if (json_object_get_type(v) != json_type_string) return NULL;
-	const char *s = json_object_get_string(v);
-	return s ? strdup(s) : NULL;
-}
-
 int grabit_hyprland_active_window(char **class_out, char **title_out) {
 	if (class_out) *class_out = NULL;
 	if (title_out) *title_out = NULL;
@@ -108,8 +101,8 @@ int grabit_hyprland_active_window(char **class_out, char **title_out) {
 		return -1;
 	}
 
-	if (class_out) *class_out = json_str_dup(root, "class");
-	if (title_out) *title_out = json_str_dup(root, "title");
+	if (class_out) *class_out = grabit_json_get_string(root, "class");
+	if (title_out) *title_out = grabit_json_get_string(root, "title");
 	json_object_put(root);
 	return 0;
 }

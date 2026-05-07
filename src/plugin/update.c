@@ -189,11 +189,7 @@ out:
 	if (pid < 0) return;
 	if (pid != 0) return;
 
-	pid_t gp = fork();
-	if (gp < 0) _exit(0);
-	if (gp != 0) _exit(0);
-
-	setsid();
+	grabit_double_fork_detach();
 	signal(SIGHUP, SIG_IGN);
 
 	char log_path[1024];

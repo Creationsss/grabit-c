@@ -136,6 +136,12 @@ struct ro_state {
 	int tooltip_timer_fd;
 	int hovered_button;
 	bool tooltip_visible;
+
+	cairo_pattern_t *picker_rainbow_pat;
+	cairo_pattern_t *picker_top_pat;
+	cairo_pattern_t *picker_bot_pat;
+	int32_t picker_pat_dw;
+	int32_t picker_pat_dh;
 };
 
 enum tb_action {
@@ -188,6 +194,7 @@ bool region_color_picker_pick(const struct ro_state *st, int32_t abs_x, int32_t 
 							  uint32_t *out_color);
 bool region_parse_hex_color(const char *s, uint32_t *out);
 void region_color_picker_render(cairo_t *cr, const struct ro_output *o);
+void region_color_picker_release_cache(struct ro_state *st);
 
 #define WIDTH_MIN 1
 #define WIDTH_MAX 12

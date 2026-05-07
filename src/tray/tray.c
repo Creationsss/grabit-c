@@ -7,6 +7,7 @@
 #include "log.h"
 #include "notify/notify.h"
 #include "tray/sni.h"
+#include "util.h"
 
 #include <errno.h>
 #include <signal.h>
@@ -28,17 +29,10 @@ static void tray_signal(int sig) {
 }
 
 static void install_signals(void) {
-	struct sigaction sa = {0};
-	sa.sa_handler = tray_signal;
-	sigemptyset(&sa.sa_mask);
-	sigaction(SIGTERM, &sa, NULL);
-	sigaction(SIGINT, &sa, NULL);
-	sigaction(SIGHUP, &sa, NULL);
-
-	struct sigaction ign = {0};
-	ign.sa_handler = SIG_IGN;
-	sigemptyset(&ign.sa_mask);
-	sigaction(SIGPIPE, &ign, NULL);
+	grabit_install_signal_handler(SIGTERM, tray_signal);
+	grabit_install_signal_handler(SIGINT, tray_signal);
+	grabit_install_signal_handler(SIGHUP, tray_signal);
+	grabit_ignore_signal(SIGPIPE);
 }
 
 struct tray_state *tray_start(void) {

@@ -174,6 +174,18 @@ bool region_toolbar_contains(const struct ro_state *st, int32_t abs_x, int32_t a
 	return abs_x >= tx && abs_x < tx + tw && abs_y >= ty && abs_y < ty + th;
 }
 
+static int32_t btn_rect_cache[TB_BTN_COUNT][4];
+static int32_t btn_rect_cache_tw = -1;
+
+static void btn_rect_cache_build(int32_t tw) {
+	for (int i = 0; i < TB_BTN_COUNT; i++) {
+		toolbar_btn_rect_local((enum tb_action)i, tw,
+							   &btn_rect_cache[i][0], &btn_rect_cache[i][1],
+							   &btn_rect_cache[i][2], &btn_rect_cache[i][3]);
+	}
+	btn_rect_cache_tw = tw;
+}
+
 enum tb_action region_toolbar_hit(const struct ro_state *st,
 								  int32_t abs_x, int32_t abs_y) {
 	int32_t tx, ty, tw, th;
@@ -182,9 +194,10 @@ enum tb_action region_toolbar_hit(const struct ro_state *st,
 	if (!o) return TB_NONE;
 	int32_t local_x = abs_x - tx;
 	int32_t local_y = abs_y - ty;
+	if (tw != btn_rect_cache_tw) btn_rect_cache_build(tw);
 	for (int i = 0; i < TB_BTN_COUNT; i++) {
-		int32_t bx, by, bw, bh;
-		toolbar_btn_rect_local((enum tb_action)i, tw, &bx, &by, &bw, &bh);
+		int32_t bx = btn_rect_cache[i][0], by = btn_rect_cache[i][1];
+		int32_t bw = btn_rect_cache[i][2], bh = btn_rect_cache[i][3];
 		if (local_x >= bx && local_x < bx + bw &&
 			local_y >= by && local_y < by + bh) return (enum tb_action)i;
 	}

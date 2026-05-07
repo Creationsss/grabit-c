@@ -67,4 +67,11 @@ bool grabit_output_rect_intersect(const struct grabit_output *o, const struct re
 								  int32_t *out_x, int32_t *out_y,
 								  int32_t *out_w, int32_t *out_h);
 
+struct wl_compositor;
+struct wl_surface;
+void grabit_wl_clear_input_region(struct wl_compositor *c, struct wl_surface *s);
+
+struct wl_callback;
+void grabit_wl_callback_drop(struct wl_callback **cb);
+
 #endif

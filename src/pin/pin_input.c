@@ -4,6 +4,7 @@
 #define _XOPEN_SOURCE 700
 #include "pin/pin_state.h"
 
+#include "cursor.h"
 #include "log.h"
 #include "wl.h"
 
@@ -17,26 +18,9 @@
 #include "relative-pointer-unstable-v1-client-protocol.h"
 #include "wlr-layer-shell-unstable-v1-client-protocol.h"
 
-static struct wl_cursor *load_first(struct wl_cursor_theme *t, const char *const *names) {
-	for (size_t i = 0; names[i]; i++) {
-		struct wl_cursor *c = wl_cursor_theme_get_cursor(t, names[i]);
-		if (c) return c;
-	}
-	return NULL;
-}
-
 void pin_input_load_cursors(struct pin_state *st) {
 	if (!st->wls->shm || !st->wls->compositor) return;
-	const char *theme_name = getenv("XCURSOR_THEME");
-	int32_t theme_size = 24;
-	const char *size_env = getenv("XCURSOR_SIZE");
-	if (size_env && *size_env) {
-		char *end = NULL;
-		long v = strtol(size_env, &end, 10);
-		if (end != size_env && v >= 8 && v <= 256) theme_size = (int32_t)v;
-	}
-	int32_t s = st->scale > 0 ? st->scale : 1;
-	st->cursor_theme = wl_cursor_theme_load(theme_name, theme_size * s, st->wls->shm);
+	st->cursor_theme = grabit_cursor_theme_load(st->wls->shm, st->scale);
 	if (!st->cursor_theme) return;
 	static const char *const hand[] = {
 		"pointer",
@@ -64,9 +48,9 @@ void pin_input_load_cursors(struct pin_state *st) {
 		"left_ptr",
 		NULL,
 	};
-	st->cursor_hand = load_first(st->cursor_theme, hand);
-	st->cursor_move = load_first(st->cursor_theme, move);
-	st->cursor_grabbing = load_first(st->cursor_theme, grabbing);
+	st->cursor_hand = grabit_cursor_load_first(st->cursor_theme, hand);
+	st->cursor_move = grabit_cursor_load_first(st->cursor_theme, move);
+	st->cursor_grabbing = grabit_cursor_load_first(st->cursor_theme, grabbing);
 	st->cursor_surface = wl_compositor_create_surface(st->wls->compositor);
 }
 
@@ -104,9 +88,7 @@ void pin_input_apply_region(struct pin_state *st) {
 	if (st->input_grabbed) {
 		wl_surface_set_input_region(st->surface, NULL);
 	} else {
-		struct wl_region *r = wl_compositor_create_region(st->wls->compositor);
-		wl_surface_set_input_region(st->surface, r);
-		wl_region_destroy(r);
+		grabit_wl_clear_input_region(st->wls->compositor, st->surface);
 	}
 	wl_surface_commit(st->surface);
 }

@@ -242,7 +242,7 @@ bool region_inside_selection(const struct ro_state *st, int32_t x, int32_t y) {
 void region_pen_append(struct ro_state *st, int32_t x, int32_t y) {
 	if (st->pen_n >= PEN_POINTS_MAX) return;
 	if (st->pen_n == st->pen_cap) {
-		size_t cap = st->pen_cap ? st->pen_cap * 2 : 64;
+		size_t cap = st->pen_cap ? st->pen_cap * 2 : 256;
 		if (cap > PEN_POINTS_MAX) cap = PEN_POINTS_MAX;
 		int32_t *p = realloc(st->pen_points, cap * 2 * sizeof(int32_t));
 		if (!p) return;

@@ -3,6 +3,7 @@
 
 #include "capture/capture.h"
 
+#include "cairo_util.h"
 #include "log.h"
 
 #include <stdint.h>
@@ -84,12 +85,10 @@ int image_apply_transform(struct image *img, int32_t transform) {
 	}
 	memset(new_bytes, 0, new_size);
 
-	cairo_surface_t *dst = cairo_image_surface_create_for_data(
-		new_bytes, fmt, new_w, new_h, new_stride);
-	cairo_surface_t *src = cairo_image_surface_create_for_data(
-		img->bytes, fmt, img->width, img->height, img->stride);
-	if (cairo_surface_status(dst) != CAIRO_STATUS_SUCCESS ||
-		cairo_surface_status(src) != CAIRO_STATUS_SUCCESS) {
+	cairo_surface_t *dst = grabit_cairo_image(new_bytes, fmt, new_w, new_h, new_stride);
+	cairo_surface_t *src = grabit_cairo_image(img->bytes, fmt, img->width,
+											  img->height, img->stride);
+	if (!dst || !src) {
 		log_error("transform: cairo surface init failed");
 		cairo_surface_destroy(src);
 		cairo_surface_destroy(dst);

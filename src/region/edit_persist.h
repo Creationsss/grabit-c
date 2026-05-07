@@ -4,8 +4,8 @@
 #ifndef GRABIT_REGION_EDIT_PERSIST_H
 #define GRABIT_REGION_EDIT_PERSIST_H
 
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 
 struct config;
 

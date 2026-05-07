@@ -3,6 +3,7 @@
 
 #include "capture/png.h"
 
+#include "cairo_util.h"
 #include "capture/capture.h"
 #include "log.h"
 #include "region/annotate.h"
@@ -34,12 +35,10 @@ static cairo_surface_t *build_composite_surface(int32_t dst_w, int32_t dst_h,
 		if (s->dst_w <= 0 || s->dst_h <= 0) continue;
 
 		cairo_format_t fmt = grabit_cairo_format_for_shm(s->src->format);
-		cairo_surface_t *src = cairo_image_surface_create_for_data(
-			s->src->bytes, fmt, s->src->width, s->src->height, s->src->stride);
-		if (cairo_surface_status(src) != CAIRO_STATUS_SUCCESS) {
-			log_warn("composite slice %zu: %s",
-					 i, cairo_status_to_string(cairo_surface_status(src)));
-			cairo_surface_destroy(src);
+		cairo_surface_t *src = grabit_cairo_image(s->src->bytes, fmt, s->src->width,
+												  s->src->height, s->src->stride);
+		if (!src) {
+			log_warn("composite slice %zu: cairo image failed", i);
 			continue;
 		}
 

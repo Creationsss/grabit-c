@@ -8,6 +8,7 @@
 #include "notify/notify.h"
 #include "pin/pin_state.h"
 #include "region/region.h"
+#include "util.h"
 #include "wl.h"
 
 #include <errno.h>
@@ -116,9 +117,7 @@ static int pin_main(cairo_surface_t *img, bool have_rect, struct rect r) {
 	zwlr_layer_surface_v1_set_keyboard_interactivity(
 		st.layer_surface, ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_NONE);
 
-	struct wl_region *empty = wl_compositor_create_region(wls.compositor);
-	wl_surface_set_input_region(st.surface, empty);
-	wl_region_destroy(empty);
+	grabit_wl_clear_input_region(wls.compositor, st.surface);
 
 	wl_surface_commit(st.surface);
 
@@ -126,12 +125,9 @@ static int pin_main(cairo_surface_t *img, bool have_rect, struct rect r) {
 		log_warn("pin: ipc disabled (grab/release won't reach this pin)");
 	}
 
-	struct sigaction sa = {0};
-	sa.sa_handler = on_term;
-	sigemptyset(&sa.sa_mask);
-	sigaction(SIGTERM, &sa, NULL);
-	sigaction(SIGINT, &sa, NULL);
-	sigaction(SIGHUP, &sa, NULL);
+	grabit_install_signal_handler(SIGTERM, on_term);
+	grabit_install_signal_handler(SIGINT, on_term);
+	grabit_install_signal_handler(SIGHUP, on_term);
 
 	while (!st.finished && !g_term) {
 		while (wl_display_prepare_read(wls.display) != 0) {
@@ -180,10 +176,7 @@ static int pin_main(cairo_surface_t *img, bool have_rect, struct rect r) {
 
 out:
 	pin_ipc_close(&st);
-	if (st.drag_frame_cb) {
-		wl_callback_destroy(st.drag_frame_cb);
-		st.drag_frame_cb = NULL;
-	}
+	grabit_wl_callback_drop(&st.drag_frame_cb);
 	pin_render_free_buffer(&st);
 	pin_input_destroy_cursors(&st);
 	if (st.layer_surface) zwlr_layer_surface_v1_destroy(st.layer_surface);
@@ -254,10 +247,7 @@ int pin_spawn(struct config *cfg, const char *path, const struct rect *r) {
 		return -1;
 	}
 	if (pid == 0) {
-		pid_t gp = fork();
-		if (gp < 0) _exit(2);
-		if (gp != 0) _exit(0);
-		setsid();
+		grabit_double_fork_detach();
 		int devnull = open("/dev/null", O_RDWR | O_CLOEXEC);
 		if (devnull >= 0) {
 			dup2(devnull, STDIN_FILENO);
@@ -281,32 +271,5 @@ int pin_spawn(struct config *cfg, const char *path, const struct rect *r) {
 		});
 		return -1;
 	}
-	return 0;
-}
-
-int pin_grab(void) {
-	int n = pin_ipc_broadcast("grab\n");
-	if (n < 0) return 1;
-	log_debug("pin: grab → %d pin(s)", n);
-	return 0;
-}
-
-int pin_release(void) {
-	int n = pin_ipc_broadcast("release\n");
-	if (n < 0) return 1;
-	log_debug("pin: release → %d pin(s)", n);
-	return 0;
-}
-
-int pin_close_all(void) {
-	int n = pin_ipc_broadcast("close\n");
-	if (n < 0) return 1;
-	log_info("pin: closed %d pin(s)", n);
-	char body[64];
-	snprintf(body, sizeof body, "%d pin%s closed", n, n == 1 ? "" : "s");
-	notify_send(&(struct notify_opts){
-		.summary = "grabit",
-		.body = body,
-	});
 	return 0;
 }

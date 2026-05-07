@@ -4,6 +4,7 @@
 #define _XOPEN_SOURCE 700
 #include "region/wlr_state.h"
 
+#include "cairo_util.h"
 #include "capture/capture.h"
 #include "log.h"
 #include "region/annotate.h"
@@ -43,13 +44,10 @@ static int output_alloc_buffer(struct ro_output *o) {
 	o->buf_size = b.size;
 	o->stride = o->pixel_width * 4;
 
-	o->cairo_dst = cairo_image_surface_create_for_data(
-		o->buf_data, CAIRO_FORMAT_ARGB32, o->pixel_width, o->pixel_height, o->stride);
-	if (cairo_surface_status(o->cairo_dst) != CAIRO_STATUS_SUCCESS) {
-		log_error("region: cairo dst surface: %s",
-				  cairo_status_to_string(cairo_surface_status(o->cairo_dst)));
-		cairo_surface_destroy(o->cairo_dst);
-		o->cairo_dst = NULL;
+	o->cairo_dst = grabit_cairo_image_argb(o->buf_data, o->pixel_width,
+										   o->pixel_height, o->stride);
+	if (!o->cairo_dst) {
+		log_error("region: cairo dst surface failed");
 		return -1;
 	}
 
@@ -62,9 +60,10 @@ static int output_alloc_buffer(struct ro_output *o) {
 		cairo_format_t fmt = (frozen->format == WL_SHM_FORMAT_ARGB8888)
 								 ? CAIRO_FORMAT_ARGB32
 								 : CAIRO_FORMAT_RGB24;
-		o->cairo_frozen = cairo_image_surface_create_for_data(
-			frozen->bytes, fmt, frozen->width, frozen->height, frozen->stride);
-		if (cairo_surface_status(o->cairo_frozen) == CAIRO_STATUS_SUCCESS) {
+		o->cairo_frozen = grabit_cairo_image(frozen->bytes, fmt,
+											 frozen->width, frozen->height,
+											 frozen->stride);
+		if (o->cairo_frozen) {
 			o->cairo_frozen_pat = cairo_pattern_create_for_surface(o->cairo_frozen);
 			double psx = frozen->width > 0
 							 ? (double)o->pixel_width / (double)frozen->width
@@ -87,10 +86,7 @@ static int output_alloc_buffer(struct ro_output *o) {
 }
 
 void region_render_free_buffer(struct ro_output *o) {
-	if (o->frame_cb) {
-		wl_callback_destroy(o->frame_cb);
-		o->frame_cb = NULL;
-	}
+	grabit_wl_callback_drop(&o->frame_cb);
 	if (o->cairo_frozen_pat) {
 		cairo_pattern_destroy(o->cairo_frozen_pat);
 		o->cairo_frozen_pat = NULL;

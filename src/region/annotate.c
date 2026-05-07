@@ -4,6 +4,7 @@
 #define _XOPEN_SOURCE 700
 #include "region/annotate.h"
 
+#include "cairo_util.h"
 #include "region/region.h"
 
 #include <math.h>
@@ -13,10 +14,7 @@
 #include <cairo/cairo.h>
 
 static void set_color(cairo_t *cr, uint32_t color) {
-	double r = ((color >> 16) & 0xff) / 255.0;
-	double g = ((color >> 8) & 0xff) / 255.0;
-	double b = (color & 0xff) / 255.0;
-	cairo_set_source_rgba(cr, r, g, b, 1.0);
+	grabit_cairo_set_source_argb(cr, color, 1.0);
 }
 
 static void paint_arrow(cairo_t *cr, double x0, double y0, double x1, double y1,

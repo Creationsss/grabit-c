@@ -37,7 +37,8 @@ static void parse_actions(toml_table_t *root, struct plugin_manifest *out) {
 	toml_table_t *actions = toml_table_in(root, "actions");
 	if (!actions) return;
 	int n = 0;
-	while (toml_key_in(actions, n) != NULL) n++;
+	while (toml_key_in(actions, n) != NULL)
+		n++;
 	if (n <= 0) return;
 	out->actions = calloc((size_t)n, sizeof *out->actions);
 	if (!out->actions) return;
@@ -45,12 +46,21 @@ static void parse_actions(toml_table_t *root, struct plugin_manifest *out) {
 		const char *key = toml_key_in(actions, i);
 		toml_table_t *t = toml_table_in(actions, key);
 		out->actions[i].name = strdup(key);
+		if (!out->actions[i].name) {
+			for (int j = 0; j <= i; j++) {
+				free(out->actions[j].name);
+				free(out->actions[j].description);
+			}
+			free(out->actions);
+			out->actions = NULL;
+			return;
+		}
 		if (t) {
 			toml_datum_t d = toml_string_in(t, "description");
 			if (d.ok) out->actions[i].description = d.u.s;
 		}
+		out->n_actions = (size_t)i + 1;
 	}
-	out->n_actions = (size_t)n;
 }
 
 static char *take_string(toml_table_t *t, const char *key) {

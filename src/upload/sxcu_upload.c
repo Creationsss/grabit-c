@@ -50,7 +50,10 @@ static size_t on_header(char *buf, size_t sz, size_t nm, void *ud) {
 	if (w->n_headers == w->cap_headers) {
 		size_t cap = w->cap_headers ? w->cap_headers * 2 : 8;
 		struct sxcu_kv *p = realloc(w->headers, cap * sizeof *p);
-		if (!p) return total;
+		if (!p) {
+			log_warn("sxcu: oom growing response headers; dropping rest");
+			return total;
+		}
 		w->headers = p;
 		w->cap_headers = cap;
 	}

@@ -4,6 +4,8 @@
 #define _XOPEN_SOURCE 700
 #include "region/toolbar_internal.h"
 
+#include "cairo_util.h"
+
 #include <math.h>
 
 #include <cairo/cairo.h>
@@ -176,10 +178,7 @@ void toolbar_icon_color_picker(cairo_t *cr, double cx, double cy, double s) {
 void toolbar_color_swatch(cairo_t *cr, double cx, double cy, double s,
 						  uint32_t color, bool active) {
 	double r = s * 0.42;
-	double rr = ((color >> 16) & 0xff) / 255.0;
-	double gg = ((color >> 8) & 0xff) / 255.0;
-	double bb = (color & 0xff) / 255.0;
-	cairo_set_source_rgba(cr, rr, gg, bb, 1);
+	grabit_cairo_set_source_argb(cr, color, 1);
 	cairo_arc(cr, cx, cy, r, 0, 2.0 * M_PI);
 	cairo_fill(cr);
 	cairo_set_source_rgba(cr, active ? 1.0 : 0.0, active ? 1.0 : 0.0, active ? 1.0 : 0.0, active ? 1.0 : 0.45);
@@ -204,10 +203,7 @@ void toolbar_color_current(cairo_t *cr, double cx, double cy, double s,
 	cairo_arc(cr, x0 + radius, y0 + h - radius, radius, 0.5 * M_PI, M_PI);
 	cairo_close_path(cr);
 
-	double rr = ((color >> 16) & 0xff) / 255.0;
-	double gg = ((color >> 8) & 0xff) / 255.0;
-	double bb = (color & 0xff) / 255.0;
-	cairo_set_source_rgba(cr, rr, gg, bb, 1);
+	grabit_cairo_set_source_argb(cr, color, 1);
 	cairo_fill_preserve(cr);
 
 	if (active) {

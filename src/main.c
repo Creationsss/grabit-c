@@ -57,13 +57,9 @@ static void on_signal(int sig) {
 }
 
 static void install_signal_handlers(void) {
-	struct sigaction sa = {0};
-	sa.sa_handler = on_signal;
-	sigemptyset(&sa.sa_mask);
-	sa.sa_flags = 0;
-	sigaction(SIGINT, &sa, NULL);
-	sigaction(SIGTERM, &sa, NULL);
-	sigaction(SIGHUP, &sa, NULL);
+	grabit_install_signal_handler(SIGINT, on_signal);
+	grabit_install_signal_handler(SIGTERM, on_signal);
+	grabit_install_signal_handler(SIGHUP, on_signal);
 }
 
 static int print_version(void) {
@@ -159,7 +155,6 @@ static char *build_capture_path(const struct args *a, struct config *cfg,
 	enum paths_dest dest = save ? PATHS_DEST_PICTURES : PATHS_DEST_TEMP;
 	return paths_build_output(cfg, a->filename_tpl, ".png", dest);
 }
-
 
 static char *capture_to_file(const struct args *a, struct config *cfg,
 							 enum action eff, bool *is_temp,

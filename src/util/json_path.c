@@ -59,3 +59,11 @@ char *grabit_json_path_string(struct json_object *root, const char *path) {
 	if (!s || !s[0]) return NULL;
 	return strdup(s);
 }
+
+char *grabit_json_get_string(struct json_object *obj, const char *key) {
+	struct json_object *v = NULL;
+	if (!json_object_object_get_ex(obj, key, &v)) return NULL;
+	if (!json_object_is_type(v, json_type_string)) return NULL;
+	const char *s = json_object_get_string(v);
+	return s ? strdup(s) : NULL;
+}

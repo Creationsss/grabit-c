@@ -4,6 +4,7 @@
 #define _XOPEN_SOURCE 700
 #include "pin/pin_state.h"
 
+#include "cairo_util.h"
 #include "util.h"
 #include "wl.h"
 
@@ -29,12 +30,9 @@ int pin_render_alloc_buffer(struct pin_state *st) {
 	st->buf_size = b.size;
 	st->stride = st->pixel_width * 4;
 
-	st->dst_surface = cairo_image_surface_create_for_data(
-		st->buf_data, CAIRO_FORMAT_ARGB32,
-		st->pixel_width, st->pixel_height, st->stride);
-	if (cairo_surface_status(st->dst_surface) != CAIRO_STATUS_SUCCESS) {
-		cairo_surface_destroy(st->dst_surface);
-		st->dst_surface = NULL;
+	st->dst_surface = grabit_cairo_image_argb(st->buf_data, st->pixel_width,
+											  st->pixel_height, st->stride);
+	if (!st->dst_surface) {
 		grabit_shm_release(&st->buffer, &st->buf_data, &st->buf_size);
 		return -1;
 	}

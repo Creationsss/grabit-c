@@ -6,6 +6,7 @@
 
 #include "log.h"
 #include "util.h"
+#include "util/json_path.h"
 
 #include <errno.h>
 #include <stdint.h>
@@ -47,14 +48,6 @@ void sxcu_free(struct sxcu_uploader *u) {
 		free(u->regex_list[i]);
 	free(u->regex_list);
 	memset(u, 0, sizeof *u);
-}
-
-static char *get_str(struct json_object *obj, const char *key) {
-	struct json_object *v = NULL;
-	if (!json_object_object_get_ex(obj, key, &v)) return NULL;
-	if (!json_object_is_type(v, json_type_string)) return NULL;
-	const char *s = json_object_get_string(v);
-	return s ? strdup(s) : NULL;
 }
 
 static int populate_kv(struct json_object *obj, const char *key,
@@ -178,8 +171,8 @@ int sxcu_parse_string(const char *json, struct sxcu_uploader *out) {
 		return -1;
 	}
 
-	out->name = get_str(root, "Name");
-	out->request_url = get_str(root, "RequestURL");
+	out->name = grabit_json_get_string(root, "Name");
+	out->request_url = grabit_json_get_string(root, "RequestURL");
 	if (!out->request_url) {
 		log_error("sxcu: missing RequestURL");
 		json_object_put(root);
@@ -187,28 +180,28 @@ int sxcu_parse_string(const char *json, struct sxcu_uploader *out) {
 		return -1;
 	}
 
-	char *method = get_str(root, "RequestMethod");
-	if (!method) method = get_str(root, "RequestType");
+	char *method = grabit_json_get_string(root, "RequestMethod");
+	if (!method) method = grabit_json_get_string(root, "RequestType");
 	out->method = parse_method(method);
 	free(method);
 
-	char *body = get_str(root, "Body");
+	char *body = grabit_json_get_string(root, "Body");
 	out->body_type = parse_body(body);
 	free(body);
 
-	out->file_form_name = get_str(root, "FileFormName");
-	out->data = get_str(root, "Data");
-	out->url_expr = get_str(root, "URL");
-	out->thumb_expr = get_str(root, "ThumbnailURL");
-	out->del_expr = get_str(root, "DeletionURL");
-	out->err_expr = get_str(root, "ErrorMessage");
+	out->file_form_name = grabit_json_get_string(root, "FileFormName");
+	out->data = grabit_json_get_string(root, "Data");
+	out->url_expr = grabit_json_get_string(root, "URL");
+	out->thumb_expr = grabit_json_get_string(root, "ThumbnailURL");
+	out->del_expr = grabit_json_get_string(root, "DeletionURL");
+	out->err_expr = grabit_json_get_string(root, "ErrorMessage");
 
 	if (populate_kv(root, "Parameters", &out->params, &out->n_params) != 0) goto fail;
 	if (populate_kv(root, "Headers", &out->headers, &out->n_headers) != 0) goto fail;
 	if (populate_kv(root, "Arguments", &out->args, &out->n_args) != 0) goto fail;
 	if (parse_regex_list(root, out) != 0) goto fail;
 
-	char *dest = get_str(root, "DestinationType");
+	char *dest = grabit_json_get_string(root, "DestinationType");
 	out->is_image_uploader = !dest || strstr(dest, "ImageUploader") ||
 							 strstr(dest, "FileUploader");
 	free(dest);

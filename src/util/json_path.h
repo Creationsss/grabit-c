@@ -8,4 +8,6 @@ struct json_object;
 
 char *grabit_json_path_string(struct json_object *root, const char *path);
 
+char *grabit_json_get_string(struct json_object *obj, const char *key);
+
 #endif
