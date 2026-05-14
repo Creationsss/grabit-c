@@ -20,14 +20,9 @@ void args_pre_scan(int argc, char **argv, bool *silent, bool *debug) {
 
 static int set_action(struct args *a, enum action act, const char *flag) {
 	if (a->action == act) return 0;
-	if ((a->action == ACTION_RECORD && act == ACTION_OUTPUT) ||
-		(a->action == ACTION_OUTPUT && act == ACTION_RECORD)) {
-		a->action = ACTION_RECORD;
-		a->no_upload = true;
-		return 0;
-	}
 	if (a->action != ACTION_NONE) {
 		log_error("conflicting actions: %s contradicts an earlier flag", flag);
+		log_info("hint: --record + --no-upload skips the auto-upload after recording");
 		return -1;
 	}
 	a->action = act;
@@ -101,6 +96,10 @@ int args_parse(int argc, char **argv, struct args *out) {
 		}
 		if (strcmp(arg, "--no-tray") == 0) {
 			out->no_tray = true;
+			continue;
+		}
+		if (strcmp(arg, "--no-upload") == 0) {
+			out->no_upload = true;
 			continue;
 		}
 		if (strcmp(arg, "--silent") == 0 ||

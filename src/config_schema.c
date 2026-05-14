@@ -15,6 +15,7 @@
 static const char *BOOL_KEYS[] = {
 	"notifications",
 	"save_captures",
+	"also_save",
 	"webp.lossless",
 	"recording.cursor",
 	"sound.enabled",
@@ -25,6 +26,7 @@ static const char *KNOWN_TOP[] = {
 	"default_action",
 	"notifications",
 	"save_captures",
+	"also_save",
 	"save_dir",
 	"editor",
 	"filename",

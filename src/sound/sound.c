@@ -55,7 +55,6 @@ void grabit_sound_play(struct config *cfg) {
 			notify_send(&(struct notify_opts){
 				.summary = "grabit: setup needed",
 				.body = "no audio player found; see terminal for details",
-				.force = true,
 			});
 			g_warned_player = true;
 		}
@@ -70,7 +69,6 @@ void grabit_sound_play(struct config *cfg) {
 			notify_send(&(struct notify_opts){
 				.summary = "grabit: setup needed",
 				.body = "no sound file found; see terminal for details",
-				.force = true,
 			});
 			g_warned_file = true;
 		}

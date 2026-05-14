@@ -82,7 +82,6 @@ static void notify_tray_unavailable(const char *body) {
 	notify_send(&(struct notify_opts){
 		.summary = "grabit: setup needed",
 		.body = body,
-		.force = true,
 	});
 }
 

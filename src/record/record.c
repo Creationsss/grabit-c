@@ -87,7 +87,7 @@ static int read_fps(struct config *cfg) {
 }
 
 static int read_crf(struct config *cfg) {
-	return read_int_cfg(cfg, "recording.crf", 20, 0, 51);
+	return read_int_cfg(cfg, "recording.crf", 23, 0, 51);
 }
 
 static bool read_cursor(struct config *cfg) {
@@ -251,7 +251,6 @@ int record_toggle(struct config *cfg, const struct args *a) {
 		log_info("recording cancelled");
 		notify_send(&(struct notify_opts){
 			.summary = "Recording cancelled",
-			.force = true,
 		});
 		return 0;
 	}
@@ -410,7 +409,6 @@ int record_toggle(struct config *cfg, const struct args *a) {
 			notify_send(&(struct notify_opts){
 				.summary = "Recording compressing",
 				.body = grabit_basename(output_path),
-				.force = true,
 			});
 			if (compress_to_target_size(ffmpeg_bin, output_path, max_mb, secs, &g_stop) == 0) {
 				if (stat(output_path, &st) == 0) {
@@ -426,7 +424,6 @@ int record_toggle(struct config *cfg, const struct args *a) {
 			notify_send(&(struct notify_opts){
 				.summary = "Recording saved",
 				.body = grabit_basename(output_path),
-				.force = true,
 			});
 		}
 
@@ -434,17 +431,16 @@ int record_toggle(struct config *cfg, const struct args *a) {
 			notify_send(&(struct notify_opts){
 				.summary = "Uploading recording",
 				.body = upload_service,
-				.force = true,
 			});
 			struct upload_result ur = {0};
 			int up_rc = upload_perform(upload_service, output_path, cfg, &ur);
 			if (up_rc == 0 && ur.url) {
 				clipboard_set_text(ur.url);
-				log_info("%s", ur.url);
+				puts(ur.url);
+				fflush(stdout);
 				notify_send(&(struct notify_opts){
 					.summary = "Recording uploaded",
 					.body = "link copied to clipboard",
-					.force = true,
 				});
 			} else {
 				log_error("recording upload failed; file kept at %s", output_path);

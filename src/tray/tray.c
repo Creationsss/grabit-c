@@ -45,7 +45,6 @@ struct tray_state *tray_start(void) {
 		notify_send(&(struct notify_opts){
 			.summary = "grabit: setup needed",
 			.body = "tray unavailable; see terminal for details",
-			.force = true,
 		});
 		free(t);
 		return NULL;

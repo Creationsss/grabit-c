@@ -18,7 +18,7 @@ struct example {
 static const struct example TOP_EXAMPLES[] = {
 	{"default_action", "upload|copy|save|pin", "copy"},
 	{"notifications", "true|false", "true"},
-	{"save_captures", "true|false", "false"},
+	{"also_save", "true|false", "false"},
 	{"save_dir", "~/Pictures", NULL},
 	{"editor", "satty | swappy | gimp | krita | kolourpaint", NULL},
 	{"filename", "%Y-%m-%d-%H-%M-%S", NULL},
@@ -57,7 +57,7 @@ static const char *zl_header_example(const struct zl_hdr *h) {
 }
 
 static const char *const ALL_KNOWN_KEYS[] = {
-	"default_action", "notifications", "save_captures", "save_dir", "editor",
+	"default_action", "notifications", "also_save", "save_dir", "editor",
 	"filename", "filename_preset", "service", "format",
 	"recording.fps", "recording.crf", "recording.preset", "recording.tune",
 	"recording.pix_fmt", "recording.max_size_mb", "recording.cursor", "recording.ffmpeg",
@@ -155,7 +155,7 @@ int cfg_help_example_for_key(const char *key, const char **example_out, const ch
 		}
 		if (strcmp(leaf, "crf") == 0) {
 			*example_out = "0-51";
-			*def_out = "20";
+			*def_out = "23";
 			return 0;
 		}
 		if (strcmp(leaf, "max_size_mb") == 0) {

@@ -83,8 +83,9 @@ static int print_help(void) {
 		"  -f <file>         Use <file> instead of taking a screenshot\n"
 		"  --tesseract       Capture, OCR, copy text to clipboard\n"
 		"  --record          Toggle screen recording (re-run to stop)\n"
-		"                    With --save: skip auto-upload even if default_action=upload\n"
+		"                    With --no-upload: skip auto-upload even if default_action=upload\n"
 		"                    With --<service>: upload to that service after recording\n"
+		"  --no-upload       Skip auto-upload after --record\n"
 		"  --no-tray         Skip SNI tray during recording\n"
 		"  --pin             Capture and pin to desktop (click-through; stack any number)\n"
 		"  --grab            Make all pinned screenshots clickable (click closes that one)\n"
@@ -196,7 +197,8 @@ static char *build_capture_path(const struct args *a, struct config *cfg,
 	} else if (eff == ACTION_OCR) {
 		save = false;
 	} else {
-		const char *si = config_get(cfg, "save_captures");
+		const char *si = config_get(cfg, "also_save");
+		if (!si) si = config_get(cfg, "save_captures");
 		save = si && strcmp(si, "true") == 0;
 	}
 	*is_temp = !save;
@@ -397,7 +399,6 @@ static int run_ocr(struct config *cfg, const struct args *a) {
 		notify_send(&(struct notify_opts){
 			.summary = "grabit: setup needed",
 			.body = "configured tesseract not found; see terminal for details",
-			.force = true,
 		});
 		return 1;
 	}
@@ -415,7 +416,6 @@ static int run_ocr(struct config *cfg, const struct args *a) {
 		notify_send(&(struct notify_opts){
 			.summary = "grabit: setup needed",
 			.body = "tesseract not installed",
-			.force = true,
 		});
 		return 1;
 	}
@@ -454,7 +454,6 @@ static int run_ocr(struct config *cfg, const struct args *a) {
 		log_info("ocr: no text found in selection");
 		notify_send(&(struct notify_opts){
 			.summary = "ocr: no text found",
-			.force = true,
 		});
 		return 1;
 	}
@@ -578,7 +577,6 @@ static int run(const struct args *a) {
 		notify_send(&(struct notify_opts){
 			.summary = "grabit: setup needed",
 			.body = "no action; run `grabit set default_action upload|copy|save|pin`",
-			.force = true,
 		});
 		rc = 1;
 		break;

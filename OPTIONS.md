@@ -179,7 +179,7 @@ grabit set default_action copy        # one of: copy, upload, save, pin
 | `default_action` | enum | `copy`/`upload`/`save`/`pin` (default `copy`) |
 | `service` | string | default upload target when `default_action=upload` (one of the built-ins or an sxcu name) |
 | `notifications` | bool | enable desktop notifications (default `true`) |
-| `save_captures` | bool | also save a copy when copying/uploading (default `false`) |
+| `also_save` | bool | also save a copy when copying/uploading (default `false`). Alias: `save_captures` (legacy). |
 | `save_dir` | string | save dir for screenshots and recordings (overrides `XDG_PICTURES_DIR`/`XDG_VIDEOS_DIR`; default `~/Pictures` for screenshots, `~/Videos` for videos) |
 | `editor` | string | external editor binary for `-e` text tool (optional) |
 | `filename` | string | filename template (see "filename templates" below) |
@@ -210,7 +210,7 @@ while recording you'll see:
 clicking the tray icon stops the recording.
 
 per-recording overrides:
-- `grabit --record --save`: skip auto-upload even if `default_action=upload`
+- `grabit --record --no-upload`: skip auto-upload even if `default_action=upload`
 - `grabit --record --zipline`: upload to a specific service after recording
 
 config keys (all optional):
@@ -218,7 +218,7 @@ config keys (all optional):
 | key | default | notes |
 |---|---|---|
 | `recording.fps` | 30 | 1-120 |
-| `recording.crf` | 20 | 0-51 (lower = higher quality) |
+| `recording.crf` | 23 | 0-51 (lower = higher quality) |
 | `recording.preset` | `fast` | one of: `ultrafast`, `superfast`, `veryfast`, `faster`, `fast`, `medium`, `slow`, `slower`, `veryslow` |
 | `recording.tune` | (none) | one of: `film`, `animation`, `grain`, `stillimage`, `psnr`, `ssim`, `fastdecode`, `zerolatency` |
 | `recording.pix_fmt` | `yuv420p` | one of: `yuv420p`, `yuv422p`, `yuv444p`, `yuv420p10le` |
@@ -337,8 +337,9 @@ modifiers:
 | `--filename <tpl>` (or `--filename=<tpl>`) | per-run filename template |
 | `--format <png\|jpeg\|webp>` (or `--format=<name>`) | per-run output format |
 | `--no-tray` | suppress the recording tray icon |
-| `--silent` | suppress info logging (errors still print) |
-| `-d` | enable debug logging |
+| `--no-upload` | with `--record`, skip the auto-upload after recording |
+| `--silent` / `-q` / `--quiet` | suppress info logging (errors still print) |
+| `-d` / `--debug` | enable debug logging |
 
 ## environment
 

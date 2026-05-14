@@ -217,7 +217,6 @@ int pin_spawn(struct config *cfg, const char *path, const struct rect *r) {
 		notify_send(&(struct notify_opts){
 			.summary = "grabit: setup needed",
 			.body = "compositor lacks layer-shell; see terminal for details",
-			.force = true,
 		});
 		return -1;
 	}

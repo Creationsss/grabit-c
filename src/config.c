@@ -131,7 +131,7 @@ static int flatten_table(toml_table_t *t, const char *prefix, struct config *c) 
 static void seed_defaults(struct config *c) {
 	cfg_kv_upsert(c, "default_action", "copy");
 	cfg_kv_upsert(c, "notifications", "true");
-	cfg_kv_upsert(c, "save_captures", "false");
+	cfg_kv_upsert(c, "also_save", "false");
 }
 
 int config_load(struct config *c) {

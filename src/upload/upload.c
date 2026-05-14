@@ -67,7 +67,6 @@ int upload_preflight(struct config *cfg, const struct args *a, const char **serv
 		notify_send(&(struct notify_opts){
 			.summary = "grabit: setup needed",
 			.body = "run: grabit set service zipline (or nest, fakecrime, ez, guns, pixelvault)",
-			.force = true,
 		});
 		return -1;
 	}
@@ -76,7 +75,6 @@ int upload_preflight(struct config *cfg, const struct args *a, const char **serv
 		notify_send(&(struct notify_opts){
 			.summary = "grabit: setup needed",
 			.body = "valid services: zipline, nest, fakecrime, ez, guns, pixelvault",
-			.force = true,
 		});
 		return -1;
 	}
@@ -96,7 +94,6 @@ int upload_preflight(struct config *cfg, const struct args *a, const char **serv
 		notify_send(&(struct notify_opts){
 			.summary = "grabit: setup needed",
 			.body = body,
-			.force = true,
 		});
 		return -1;
 	}
@@ -109,7 +106,6 @@ int upload_preflight(struct config *cfg, const struct args *a, const char **serv
 			notify_send(&(struct notify_opts){
 				.summary = "grabit: setup needed",
 				.body = "run: grabit set services.zipline.domain https://<host>/api/upload",
-				.force = true,
 			});
 			return -1;
 		}
