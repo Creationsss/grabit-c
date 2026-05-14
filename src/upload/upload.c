@@ -265,12 +265,17 @@ int upload_perform(const char *service_name, const char *file_path,
 	if (strcmp(svc->name, "zipline") == 0 && cfg) {
 		const char *prefix = "services.zipline.headers.";
 		size_t pl = strlen(prefix);
+		bool has_format = false;
 		for (size_t i = 0; i < cfg->n; i++) {
 			const char *k = cfg->kvs[i].key;
 			if (strncmp(k, prefix, pl) != 0) continue;
 			const char *header_name = k + pl;
 			const char *val = cfg->kvs[i].val;
+			if (strcmp(header_name, "x-zipline-format") == 0) has_format = true;
 			if (val && val[0]) headers = append_header(headers, header_name, val, &hdr_oom);
+		}
+		if (!has_format) {
+			headers = append_header(headers, "x-zipline-format", "name", &hdr_oom);
 		}
 	}
 

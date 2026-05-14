@@ -121,7 +121,7 @@ zipline supports per-upload metadata via headers. set them with `services.ziplin
 
 | header | accepted values |
 |---|---|
-| `x-zipline-format` | `random`, `date`, `uuid`, `name`, `gfycat` |
+| `x-zipline-format` | `random`, `date`, `uuid`, `name`, `gfycat` — **defaults to `name`** so the uploaded URL preserves grabit's filename template (e.g. `%w`, `%Y-%m-%d`). Set it explicitly to override. |
 | `x-zipline-image-compression-percent` | 0-100 |
 | `x-zipline-image-compression-type` | `jpg`, `png`, `webp`, `jxl` |
 | `x-zipline-password` | string |
