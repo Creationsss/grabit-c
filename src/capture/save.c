@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 creations
 
-#include "capture/png.h"
+#include "capture/save.h"
 
 #include "cairo_util.h"
 #include "capture/capture.h"
@@ -10,8 +10,36 @@
 #include "region/region.h"
 #include "util.h"
 
-#include <cairo/cairo.h>
-#include <wayland-client.h>
+#include <string.h>
+
+const char *grabit_format_extension(enum grabit_image_format f) {
+	switch (f) {
+	case GRABIT_FMT_JPEG:
+		return ".jpg";
+	case GRABIT_FMT_WEBP:
+		return ".webp";
+	case GRABIT_FMT_PNG:
+	default:
+		return ".png";
+	}
+}
+
+int grabit_format_from_name(const char *name, enum grabit_image_format *out) {
+	if (!name || !out) return -1;
+	if (strcmp(name, "png") == 0) {
+		*out = GRABIT_FMT_PNG;
+		return 0;
+	}
+	if (strcmp(name, "jpeg") == 0 || strcmp(name, "jpg") == 0) {
+		*out = GRABIT_FMT_JPEG;
+		return 0;
+	}
+	if (strcmp(name, "webp") == 0) {
+		*out = GRABIT_FMT_WEBP;
+		return 0;
+	}
+	return -1;
+}
 
 static cairo_surface_t *build_composite_surface(int32_t dst_w, int32_t dst_h,
 												const struct png_slice *slices, size_t n) {
@@ -62,14 +90,24 @@ static cairo_surface_t *build_composite_surface(int32_t dst_w, int32_t dst_h,
 	return dst;
 }
 
-int grabit_png_write_composite_annotated(int32_t dst_w, int32_t dst_h,
-										 const struct png_slice *slices, size_t n,
-										 const struct rect *region, int32_t scale,
-										 const struct annotation_list *annos,
-										 const char *path) {
-	if (!path || dst_w <= 0 || dst_h <= 0 || n == 0 || !slices) return -1;
+int grabit_save_png_surface(cairo_surface_t *surface, const char *path) {
+	cairo_status_t st = cairo_surface_write_to_png(surface, path);
+	if (st != CAIRO_STATUS_SUCCESS) {
+		log_error("cairo_surface_write_to_png(%s): %s", path, cairo_status_to_string(st));
+		return -1;
+	}
+	return 0;
+}
+
+int grabit_save_composite_annotated(int32_t dst_w, int32_t dst_h,
+									const struct png_slice *slices, size_t n,
+									const struct rect *region, int32_t scale,
+									const struct annotation_list *annos,
+									const struct grabit_save_opts *opts,
+									const char *path) {
+	if (!path || !opts || dst_w <= 0 || dst_h <= 0 || n == 0 || !slices) return -1;
 	if (dst_w > GRABIT_MAX_PIXEL_SIDE || dst_h > GRABIT_MAX_PIXEL_SIDE) {
-		log_error("png composite: %dx%d exceeds %d-px side cap",
+		log_error("save: %dx%d exceeds %d-px side cap",
 				  dst_w, dst_h, GRABIT_MAX_PIXEL_SIDE);
 		return -1;
 	}
@@ -83,12 +121,20 @@ int grabit_png_write_composite_annotated(int32_t dst_w, int32_t dst_h,
 		cairo_destroy(cr);
 	}
 
-	cairo_status_t st = cairo_surface_write_to_png(dst, path);
-	cairo_surface_destroy(dst);
-
-	if (st != CAIRO_STATUS_SUCCESS) {
-		log_error("cairo_surface_write_to_png(%s): %s", path, cairo_status_to_string(st));
-		return -1;
+	int rc;
+	switch (opts->format) {
+	case GRABIT_FMT_JPEG:
+		rc = grabit_save_jpeg_surface(dst, path, opts->jpeg_quality);
+		break;
+	case GRABIT_FMT_WEBP:
+		rc = grabit_save_webp_surface(dst, path, opts->webp_quality, opts->webp_lossless);
+		break;
+	case GRABIT_FMT_PNG:
+	default:
+		rc = grabit_save_png_surface(dst, path);
+		break;
 	}
-	return 0;
+
+	cairo_surface_destroy(dst);
+	return rc;
 }

@@ -24,6 +24,7 @@ static const struct example TOP_EXAMPLES[] = {
 	{"filename", "%Y-%m-%d-%H-%M-%S", NULL},
 	{"filename_preset", "date|random|uuid|timestamp", "date"},
 	{"service", "zipline|nest|fakecrime|ez|guns|pixelvault", NULL},
+	{"format", "png|jpeg|webp", "png"},
 };
 static const size_t TOP_EXAMPLES_N = sizeof TOP_EXAMPLES / sizeof TOP_EXAMPLES[0];
 
@@ -159,6 +160,21 @@ int cfg_help_example_for_key(const char *key, const char **example_out, const ch
 			return 0;
 		}
 	}
+	if (strcmp(key, "jpeg.quality") == 0) {
+		*example_out = "1..100";
+		*def_out = "90";
+		return 0;
+	}
+	if (strcmp(key, "webp.quality") == 0) {
+		*example_out = "0..100";
+		*def_out = "85";
+		return 0;
+	}
+	if (strcmp(key, "webp.lossless") == 0) {
+		*example_out = "true|false";
+		*def_out = "false";
+		return 0;
+	}
 	if (strncmp(key, "ocr.", 4) == 0) {
 		const char *leaf = key + 4;
 		if (strcmp(leaf, "tesseract") == 0) {
@@ -250,6 +266,16 @@ void cfg_help_print_all_keys(void) {
 	puts("");
 	print_key_with_default("edit.color", find_default("edit.color"));
 	print_key_with_default("edit.width", find_default("edit.width"));
+	puts("");
+	static const char *const ENCODER_KEYS[] = {
+		"jpeg.quality",
+		"webp.quality",
+		"webp.lossless",
+		NULL,
+	};
+	for (size_t i = 0; ENCODER_KEYS[i]; i++) {
+		print_key_with_default(ENCODER_KEYS[i], find_default(ENCODER_KEYS[i]));
+	}
 	puts("");
 	print_key_with_default("ocr.tesseract", find_default("ocr.tesseract"));
 }

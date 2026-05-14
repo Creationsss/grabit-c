@@ -4,7 +4,7 @@
 #include "capture/freeze.h"
 
 #include "capture/capture.h"
-#include "capture/png.h"
+#include "capture/save.h"
 #include "log.h"
 #include "region/region.h"
 #include "wl.h"
@@ -13,6 +13,7 @@
 #include <stdlib.h>
 
 int grabit_freeze_capture(struct grabit_wl_state *s, const char *path,
+						  const struct grabit_save_opts *save_opts,
 						  struct rect *out_rect, bool annotate,
 						  uint32_t *inout_color, int32_t *inout_width,
 						  bool *out_choices_dirty) {
@@ -100,9 +101,9 @@ int grabit_freeze_capture(struct grabit_wl_state *s, const char *path,
 		goto cleanup;
 	}
 
-	rc = grabit_png_write_composite_annotated(dst_w, dst_h, slices, n_slices,
-											  &r, max_scale,
-											  annos.n > 0 ? &annos : NULL, path);
+	rc = grabit_save_composite_annotated(dst_w, dst_h, slices, n_slices,
+										 &r, max_scale,
+										 annos.n > 0 ? &annos : NULL, save_opts, path);
 
 	if (rc == 0 && out_rect) *out_rect = r;
 

@@ -50,6 +50,10 @@ required:
 
 build-time only (data, no link): `wayland-protocols`, `wayland-scanner`.
 
+optional (auto-detected via pkg-config):
+- `libjpeg` (or `libjpeg-turbo`) — enables JPEG output (`format = jpeg`).
+- `libwebp` — enables WebP output (`format = webp`).
+
 runtime (no link-time deps, looked up via `$PATH`):
 - `ffmpeg` for `--record`
 - `tesseract` + the english training data for `--tesseract`
@@ -180,6 +184,17 @@ grabit set default_action copy        # one of: copy, upload, save, pin
 | `editor` | string | external editor binary for `-e` text tool (optional) |
 | `filename` | string | filename template (see "filename templates" below) |
 | `filename_preset` | enum | `date`/`random`/`uuid`/`timestamp` |
+| `format` | enum | screenshot output format: `png`/`jpeg`/`webp` (default `png`). per-run override: `--format <name>` |
+
+### encoder options
+
+| key | default | notes |
+|---|---|---|
+| `jpeg.quality` | `90` | JPEG quality 1–100 |
+| `webp.quality` | `85` | WebP quality 0–100 (ignored when `webp.lossless = true`) |
+| `webp.lossless` | `false` | use WebP lossless mode |
+
+JPEG and WebP support is detected at build time via `pkg-config libjpeg` and `pkg-config libwebp`. If a format wasn't compiled in, picking it at runtime errors out clearly. PNG is always available.
 
 ## recording
 
@@ -320,6 +335,7 @@ modifiers:
 |---|---|
 | `-f <file>` | use an existing file instead of capturing |
 | `--filename <tpl>` (or `--filename=<tpl>`) | per-run filename template |
+| `--format <png\|jpeg\|webp>` (or `--format=<name>`) | per-run output format |
 | `--no-tray` | suppress the recording tray icon |
 | `--silent` | suppress info logging (errors still print) |
 | `-d` | enable debug logging |

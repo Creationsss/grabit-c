@@ -29,6 +29,7 @@ struct args {
 	const char *file;
 	const char *service;
 	const char *filename_tpl;
+	const char *format;
 };
 
 void args_pre_scan(int argc, char **argv, bool *silent, bool *debug);

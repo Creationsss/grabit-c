@@ -14,6 +14,7 @@
 #include "args.h"
 #include "capture/capture.h"
 #include "capture/freeze.h"
+#include "capture/save.h"
 #include "clipboard/clipboard.h"
 #include "config.h"
 #include "log.h"
@@ -140,8 +141,38 @@ static int print_help(void) {
 	return 0;
 }
 
+static int read_int_cfg_clamp(struct config *cfg, const char *key,
+							  int def, int lo, int hi) {
+	const char *v = config_get(cfg, key);
+	if (!v || !v[0]) return def;
+	char *end = NULL;
+	long n = strtol(v, &end, 10);
+	if (!end || *end != '\0') return def;
+	if (n < lo) return lo;
+	if (n > hi) return hi;
+	return (int)n;
+}
+
+static int resolve_save_opts(const struct args *a, struct config *cfg,
+							 struct grabit_save_opts *out) {
+	*out = (struct grabit_save_opts){0};
+	const char *fmt_name = a->format;
+	if (!fmt_name) fmt_name = config_get(cfg, "format");
+	if (!fmt_name) fmt_name = "png";
+	if (grabit_format_from_name(fmt_name, &out->format) != 0) {
+		log_error("unknown format `%s` (expected png|jpeg|webp)", fmt_name);
+		return -1;
+	}
+	out->jpeg_quality = read_int_cfg_clamp(cfg, "jpeg.quality", 90, 1, 100);
+	out->webp_quality = read_int_cfg_clamp(cfg, "webp.quality", 85, 0, 100);
+	const char *wl = config_get(cfg, "webp.lossless");
+	out->webp_lossless = wl && strcmp(wl, "true") == 0;
+	return 0;
+}
+
 static char *build_capture_path(const struct args *a, struct config *cfg,
-								enum action eff, bool *is_temp) {
+								enum action eff, bool *is_temp,
+								const struct grabit_save_opts *opts) {
 	bool save;
 	if (eff == ACTION_OUTPUT) {
 		save = true;
@@ -153,14 +184,17 @@ static char *build_capture_path(const struct args *a, struct config *cfg,
 	}
 	*is_temp = !save;
 	enum paths_dest dest = save ? PATHS_DEST_PICTURES : PATHS_DEST_TEMP;
-	return paths_build_output(cfg, a->filename_tpl, ".png", dest);
+	const char *ext = grabit_format_extension(opts->format);
+	return paths_build_output(cfg, a->filename_tpl, ext, dest);
 }
 
 static char *capture_to_file(const struct args *a, struct config *cfg,
 							 enum action eff, bool *is_temp,
 							 struct rect *out_rect) {
 	*is_temp = false;
-	char *path = build_capture_path(a, cfg, eff, is_temp);
+	struct grabit_save_opts opts;
+	if (resolve_save_opts(a, cfg, &opts) != 0) return NULL;
+	char *path = build_capture_path(a, cfg, eff, is_temp, &opts);
 	if (!path) {
 		notify_send(&(struct notify_opts){
 			.summary = "grabit: capture failed",
@@ -188,7 +222,7 @@ static char *capture_to_file(const struct args *a, struct config *cfg,
 	int32_t edit_width = edit_width_from_str(config_get(cfg, "edit.width"));
 	bool edit_dirty = false;
 
-	int rc = grabit_freeze_capture(&s, path, out_rect, a->edit,
+	int rc = grabit_freeze_capture(&s, path, &opts, out_rect, a->edit,
 								   a->edit ? &edit_color : NULL,
 								   a->edit ? &edit_width : NULL,
 								   a->edit ? &edit_dirty : NULL);

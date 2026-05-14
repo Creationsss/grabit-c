@@ -128,6 +128,27 @@ int args_parse(int argc, char **argv, struct args *out) {
 			continue;
 		}
 
+		if (strcmp(arg, "--format") == 0) {
+			if (++i >= argc) {
+				log_error("--format requires a value (png|jpeg|webp)");
+				return -1;
+			}
+			if (!argv[i][0]) {
+				log_error("--format requires a non-empty value (png|jpeg|webp)");
+				return -1;
+			}
+			out->format = argv[i];
+			continue;
+		}
+		if (strncmp(arg, "--format=", 9) == 0) {
+			out->format = arg + 9;
+			if (!*out->format) {
+				log_error("--format requires a non-empty value (png|jpeg|webp)");
+				return -1;
+			}
+			continue;
+		}
+
 		if (arg[0] == '-' && arg[1] == '-' && arg[2] != '\0') {
 			const char *name = arg + 2;
 			if (upload_service_known(name)) {

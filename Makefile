@@ -32,6 +32,18 @@ PKGS_CORE := json-c libcurl wayland-client wayland-cursor cairo xkbcommon dbus-1
 CFLAGS    += $(shell $(PKG_CONFIG) --cflags $(PKGS_CORE)) -pthread
 LDLIBS    += $(shell $(PKG_CONFIG) --libs   $(PKGS_CORE)) -lmagic -lrt -lm -pthread
 
+HAVE_JPEG := $(shell $(PKG_CONFIG) --exists libjpeg && echo 1)
+HAVE_WEBP := $(shell $(PKG_CONFIG) --exists libwebp && echo 1)
+
+ifeq ($(HAVE_JPEG),1)
+  CFLAGS += -DHAVE_JPEG $(shell $(PKG_CONFIG) --cflags libjpeg)
+  LDLIBS += $(shell $(PKG_CONFIG) --libs libjpeg)
+endif
+ifeq ($(HAVE_WEBP),1)
+  CFLAGS += -DHAVE_WEBP $(shell $(PKG_CONFIG) --cflags libwebp)
+  LDLIBS += $(shell $(PKG_CONFIG) --libs libwebp)
+endif
+
 WL_PROTOCOLS := \
 	wlr-screencopy-unstable-v1 \
 	wlr-data-control-unstable-v1 \
@@ -73,7 +85,9 @@ GRABIT_SRCS := \
 	src/mime.c \
 	src/wl.c \
 	src/capture/wlr_screencopy.c \
-	src/capture/png.c \
+	src/capture/save.c \
+	src/capture/jpeg.c \
+	src/capture/webp.c \
 	src/capture/transform.c \
 	src/capture/freeze.c \
 	src/region/annotate.c \

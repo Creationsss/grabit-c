@@ -15,6 +15,7 @@
 static const char *BOOL_KEYS[] = {
 	"notifications",
 	"save_captures",
+	"webp.lossless",
 	NULL,
 };
 
@@ -27,6 +28,7 @@ static const char *KNOWN_TOP[] = {
 	"filename",
 	"filename_preset",
 	"service",
+	"format",
 	NULL,
 };
 
@@ -43,6 +45,7 @@ static const char *KNOWN_SERVICES[] = {
 static const char *VALS_default_action[] = {"upload", "copy", "save", "pin", NULL};
 static const char *VALS_filename_preset[] = {"date", "random", "uuid", "timestamp", NULL};
 static const char *VALS_edit_color[] = {"red", "yellow", "green", "blue", "black", "white", NULL};
+static const char *VALS_format[] = {"png", "jpeg", "webp", NULL};
 
 static const char *VALS_zl_format[] = {"random", "date", "uuid", "name", "gfycat", NULL};
 static const char *VALS_zl_compress[] = {"jpg", "png", "webp", "jxl", NULL};
@@ -119,6 +122,17 @@ static bool valid_edit_key(const char *key) {
 	if (strncmp(key, "edit.", 5) != 0) return false;
 	const char *leaf = key + 5;
 	return strcmp(leaf, "color") == 0 || strcmp(leaf, "width") == 0;
+}
+
+static bool valid_jpeg_key(const char *key) {
+	if (strncmp(key, "jpeg.", 5) != 0) return false;
+	return strcmp(key + 5, "quality") == 0;
+}
+
+static bool valid_webp_key(const char *key) {
+	if (strncmp(key, "webp.", 5) != 0) return false;
+	const char *leaf = key + 5;
+	return strcmp(leaf, "quality") == 0 || strcmp(leaf, "lossless") == 0;
 }
 
 static bool valid_sound_key(const char *key) {
@@ -284,10 +298,19 @@ static int validate_edit_color(const char *value) {
 
 int config_set(struct config *c, const char *key, const char *value) {
 	if (!valid_top_key(key) && !valid_service_key(key) && !valid_recording_key(key) &&
-		!valid_ocr_key(key) && !valid_sound_key(key) && !valid_edit_key(key)) {
+		!valid_ocr_key(key) && !valid_sound_key(key) && !valid_edit_key(key) &&
+		!valid_jpeg_key(key) && !valid_webp_key(key)) {
 		log_error("unknown config key: %s", key);
 		return -1;
 	}
+	if (strcmp(key, "format") == 0 && !cfg_in_list(value, VALS_format)) {
+		log_error("format must be one of png|jpeg|webp");
+		return -1;
+	}
+	if (strcmp(key, "jpeg.quality") == 0 &&
+		validate_int_in_range(key, value, 1, 100) != 0) return -1;
+	if (strcmp(key, "webp.quality") == 0 &&
+		validate_int_in_range(key, value, 0, 100) != 0) return -1;
 	if (strcmp(key, "sound.enabled") == 0 &&
 		strcmp(value, "true") != 0 && strcmp(value, "false") != 0) {
 		log_error("sound.enabled must be true or false");
