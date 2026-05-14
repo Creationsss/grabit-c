@@ -12,11 +12,33 @@
 #include <stdlib.h>
 #include <string.h>
 
+static bool is_help_arg(const char *s) {
+	return s && (strcmp(s, "--help") == 0 || strcmp(s, "-h") == 0);
+}
+
+static char *split_eq(const char *arg, const char **val_out) {
+	const char *eq = strchr(arg, '=');
+	if (!eq) return NULL;
+	*val_out = eq + 1;
+	char *k = strndup(arg, (size_t)(eq - arg));
+	return k;
+}
+
 int cmd_set(int argc, char **argv) {
-	if (argc == 0) {
+	if (argc == 0 || (argc == 1 && is_help_arg(argv[0]))) {
 		cfg_help_print_all_keys();
-		return 0;
+		return argc == 0 ? 0 : 0;
 	}
+
+	const char *eq_val = NULL;
+	char *eq_key = (argc == 1) ? split_eq(argv[0], &eq_val) : NULL;
+	if (eq_key) {
+		char *aliased[2] = {eq_key, (char *)eq_val};
+		int rc = cmd_set(2, aliased);
+		free(eq_key);
+		return rc;
+	}
+
 	if (argc == 1) {
 		const char *ex = NULL, *def = NULL;
 		if (cfg_help_example_for_key(argv[0], &ex, &def) != 0) {
@@ -49,13 +71,17 @@ int cmd_set(int argc, char **argv) {
 	struct config c;
 	if (config_load(&c) != 0) return 1;
 	int rc = config_set(&c, argv[0], argv[1]);
+	const char *stored = (rc == 0) ? config_get(&c, argv[0]) : NULL;
+	if (rc == 0) log_info("set %s = %s", argv[0], stored ? stored : argv[1]);
 	config_free(&c);
-	if (rc != 0) return 1;
-	log_info("set %s = %s", argv[0], argv[1]);
-	return 0;
+	return rc == 0 ? 0 : 1;
 }
 
 int cmd_get(int argc, char **argv) {
+	if (argc == 1 && is_help_arg(argv[0])) {
+		puts("usage: grabit get [<key>]");
+		return 0;
+	}
 	if (argc > 1) {
 		log_error("usage: grabit get [<key>]");
 		return 1;
@@ -83,6 +109,10 @@ int cmd_get(int argc, char **argv) {
 }
 
 int cmd_unset(int argc, char **argv) {
+	if (argc == 1 && is_help_arg(argv[0])) {
+		puts("usage: grabit unset <key>");
+		return 0;
+	}
 	if (argc != 1) {
 		log_error("usage: grabit unset <key>");
 		return 1;

@@ -43,6 +43,7 @@ static bool g_warned_player = false;
 static bool g_warned_file = false;
 
 void grabit_sound_play(struct config *cfg) {
+	if (log_is_silent()) return;
 	const char *enabled = config_get(cfg, "sound.enabled");
 	if (!enabled || strcmp(enabled, "true") != 0) return;
 

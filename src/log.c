@@ -19,6 +19,10 @@ static const char *C_YELLOW = "";
 static const char *C_CYAN = "";
 static const char *C_RESET = "";
 
+bool log_is_silent(void) {
+	return g_silent;
+}
+
 void log_init(bool silent, bool debug) {
 	g_silent = silent;
 	g_debug = debug;

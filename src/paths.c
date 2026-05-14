@@ -16,6 +16,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -198,8 +199,43 @@ char *paths_build_output(struct config *cfg, const char *cli_template,
 		return NULL;
 	}
 
+	static const char *const KNOWN_EXT[] = {
+		".png",
+		".jpg",
+		".jpeg",
+		".webp",
+		NULL,
+	};
+	for (size_t i = 0; KNOWN_EXT[i]; i++) {
+		size_t el = strlen(KNOWN_EXT[i]);
+		size_t cl = strlen(clean);
+		if (cl > el && strcasecmp(clean + cl - el, KNOWN_EXT[i]) == 0) {
+			clean[cl - el] = '\0';
+			break;
+		}
+	}
+
 	char *path = NULL;
-	(void)grabit_xasprintf(&path, "%s/%s%s", dir, clean, extension);
+	if (grabit_xasprintf(&path, "%s/%s%s", dir, clean, extension) != 0) {
+		free(dir);
+		free(clean);
+		return NULL;
+	}
+	if (dest == PATHS_DEST_PICTURES && access(path, F_OK) == 0) {
+		for (int n = 1; n < 10000; n++) {
+			char *candidate = NULL;
+			if (grabit_xasprintf(&candidate, "%s/%s-%d%s",
+								 dir, clean, n, extension) != 0) {
+				break;
+			}
+			if (access(candidate, F_OK) != 0) {
+				free(path);
+				path = candidate;
+				break;
+			}
+			free(candidate);
+		}
+	}
 	free(dir);
 	free(clean);
 	return path;

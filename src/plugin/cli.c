@@ -17,6 +17,17 @@ static int usage(void) {
 	return 1;
 }
 
+static int help(void) {
+	puts("usage: grabit plugin <subcommand> [args]");
+	puts("");
+	puts("  install <git-url>  clone, build (or fetch prebuilt), install (alias: add)");
+	puts("  list               list installed plugins (alias: ls)");
+	puts("  show <name>        print parsed manifest");
+	puts("  update [<name>]    update one plugin (or all if omitted)");
+	puts("  remove <name>      uninstall a plugin (alias: rm)");
+	return 0;
+}
+
 static int do_list(void) {
 	const char *root = plugin_dir_path();
 	if (!root[0]) return 1;
@@ -80,7 +91,10 @@ static int do_show(const char *name) {
 int cmd_plugin(int argc, char **argv) {
 	if (argc < 1) return usage();
 	const char *sub = argv[0];
-	if (strcmp(sub, "install") == 0) {
+	if (strcmp(sub, "--help") == 0 || strcmp(sub, "-h") == 0) {
+		return help();
+	}
+	if (strcmp(sub, "install") == 0 || strcmp(sub, "add") == 0) {
 		if (argc != 2) {
 			log_error("usage: grabit plugin install <git-url>");
 			return 1;

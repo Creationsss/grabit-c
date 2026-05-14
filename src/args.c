@@ -37,8 +37,23 @@ static int set_action(struct args *a, enum action act, const char *flag) {
 int args_parse(int argc, char **argv, struct args *out) {
 	memset(out, 0, sizeof *out);
 
+	bool positional_only = false;
 	for (int i = 1; i < argc; i++) {
 		const char *arg = argv[i];
+
+		if (!positional_only && strcmp(arg, "--") == 0) {
+			positional_only = true;
+			continue;
+		}
+		if (positional_only) {
+			if (out->file) {
+				log_error("unexpected extra argument: %s", arg);
+				return -1;
+			}
+			out->file = arg;
+			if (out->action == ACTION_NONE) out->action = ACTION_UPLOAD;
+			continue;
+		}
 
 		if (strcmp(arg, "-c") == 0) {
 			if (set_action(out, ACTION_COPY, arg) != 0) return -1;

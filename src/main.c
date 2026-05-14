@@ -65,6 +65,7 @@ static void install_signal_handlers(void) {
 
 static int print_version(void) {
 	puts("grabit " GRABIT_VERSION);
+	puts("Copyright (C) 2026 creations. AGPL-3.0-or-later.");
 	return 0;
 }
 
@@ -93,8 +94,10 @@ static int print_help(void) {
 		"  --silent          Suppress notifications and sound\n"
 		"  -d                Enable debug logging to stderr\n"
 		"  --filename <tpl>  Per-run filename template\n"
+		"  --format <fmt>    Output format: png|jpeg|webp (default png)\n"
+		"  --                End-of-options; following arg is treated as -f <file>\n"
 		"\n"
-		"Config:\n"
+		"Config (run `grabit set --help` for details):\n"
 		"  set <key> <val>   Write a config key (validated)\n"
 		"  set <key>         Print example value for that key\n"
 		"  set               List all available keys\n"
@@ -103,9 +106,9 @@ static int print_help(void) {
 		"\n"
 		"Custom uploaders (ShareX .sxcu):\n"
 		"  sxcu add <file>   Register a .sxcu uploader (use as --<name>)\n"
-		"  sxcu list         Show registered uploaders\n"
+		"  sxcu list         Show registered uploaders (alias: ls)\n"
 		"  sxcu show <name>  Print parsed fields\n"
-		"  sxcu rm <name>    Remove an uploader\n"
+		"  sxcu remove <name>  Remove an uploader (alias: rm)\n"
 		"\n"
 		"Plugins:\n"
 		"  plugin install <git-url>  Clone, build, and install a plugin\n"
@@ -136,7 +139,9 @@ static int print_help(void) {
 		"  GRABIT_DEBUG=1            Same as -d\n"
 		"  GRABIT_<SERVICE>_AUTH     Auth token (overrides config). Service is one of\n"
 		"                            ZIPLINE, NEST, FAKECRIME, EZ, GUNS, PIXELVAULT.\n"
-		"                            Example: export GRABIT_ZIPLINE_AUTH=\"$(pass show grabit/zipline)\"\n",
+		"                            Example: export GRABIT_ZIPLINE_AUTH=\"$(pass show grabit/zipline)\"\n"
+		"  GRABIT_BIN                Set by plugin dispatch; absolute path to grabit\n"
+		"  NO_COLOR                  Disable color in logs (https://no-color.org)\n",
 		stdout);
 	return 0;
 }
@@ -256,7 +261,7 @@ static int run_upload(struct config *cfg, const struct args *a) {
 	if (a->file) {
 		path = strdup(a->file);
 		if (!path) {
-			log_error("oom: run_upload");
+			log_error("out of memory");
 			return 1;
 		}
 	} else {
@@ -279,7 +284,8 @@ static int run_upload(struct config *cfg, const struct args *a) {
 		notify_send(&opts);
 		grabit_sound_play(cfg);
 		free(m);
-		log_info("%s", r.url);
+		puts(r.url);
+		fflush(stdout);
 	} else {
 		char body_short[1024];
 		const char *body = r.body;
@@ -313,7 +319,7 @@ static int run_copy(struct config *cfg, const struct args *a) {
 	if (a->file) {
 		path = strdup(a->file);
 		if (!path) {
-			log_error("oom: run_copy");
+			log_error("out of memory");
 			return 1;
 		}
 	} else {
@@ -405,7 +411,7 @@ static int run_ocr(struct config *cfg, const struct args *a) {
 	if (a->file) {
 		path = strdup(a->file);
 		if (!path) {
-			log_error("oom: run_ocr");
+			log_error("out of memory");
 			return 1;
 		}
 	} else {
@@ -431,16 +437,16 @@ static int run_ocr(struct config *cfg, const struct args *a) {
 	}
 	if (!text[0]) {
 		free(text);
-		log_info("OCR: no text found in selection");
+		log_info("ocr: no text found in selection");
 		notify_send(&(struct notify_opts){
-			.summary = "OCR: no text found",
+			.summary = "ocr: no text found",
 			.force = true,
 		});
 		return 1;
 	}
 
 	if (clipboard_set_text(text) != 0) {
-		log_error("OCR: clipboard write failed");
+		log_error("ocr: clipboard write failed");
 		notify_send(&(struct notify_opts){
 			.summary = "Clipboard write failed",
 			.body = "OCR text not copied; see terminal for details",
@@ -461,7 +467,7 @@ static int run_ocr(struct config *cfg, const struct args *a) {
 		snprintf(preview, sizeof preview, "%s", text);
 	}
 
-	log_info("OCR: %zu chars copied to clipboard", tlen);
+	log_info("ocr: %zu chars copied to clipboard", tlen);
 	notify_send(&(struct notify_opts){
 		.summary = "OCR Complete",
 		.body = preview,
@@ -484,7 +490,7 @@ static int run_pin(struct config *cfg, const struct args *a) {
 	if (a->file) {
 		path = strdup(a->file);
 		if (!path) {
-			log_error("oom: run_pin");
+			log_error("out of memory");
 			return 1;
 		}
 	} else {
@@ -672,6 +678,18 @@ int main(int argc, char **argv) {
 		const char *first = argv[1];
 		if (strcmp(first, "--version") == 0) return print_version();
 		if (strcmp(first, "--help") == 0 || strcmp(first, "-h") == 0) return print_help();
+		if (strcmp(first, "help") == 0) {
+			if (argc < 3) return print_help();
+			const char *sub = argv[2];
+			static char *help_argv[] = {(char *)"--help", NULL};
+			if (strcmp(sub, "set") == 0) return cmd_set(1, help_argv);
+			if (strcmp(sub, "get") == 0) return cmd_get(1, help_argv);
+			if (strcmp(sub, "unset") == 0) return cmd_unset(1, help_argv);
+			if (strcmp(sub, "sxcu") == 0) return cmd_sxcu(1, help_argv);
+			if (strcmp(sub, "plugin") == 0) return cmd_plugin(1, help_argv);
+			log_error("no help topic for `%s`", sub);
+			return 1;
+		}
 		if (strcmp(first, "set") == 0) return cmd_set(argc - 2, argv + 2);
 		if (strcmp(first, "get") == 0) return cmd_get(argc - 2, argv + 2);
 		if (strcmp(first, "unset") == 0) return cmd_unset(argc - 2, argv + 2);

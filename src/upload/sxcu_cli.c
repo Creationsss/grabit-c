@@ -16,6 +16,16 @@ static int usage(void) {
 	return 1;
 }
 
+static int help(void) {
+	puts("usage: grabit sxcu <subcommand> [args]");
+	puts("");
+	puts("  add <file>     register a .sxcu uploader (alias: install)");
+	puts("  list           show registered uploaders (alias: ls)");
+	puts("  show <name>    print parsed fields");
+	puts("  remove <name>  remove an uploader (alias: rm)");
+	return 0;
+}
+
 static int do_list(void) {
 	char **names = NULL;
 	size_t n = 0;
@@ -64,7 +74,10 @@ static int do_show(const char *name) {
 int cmd_sxcu(int argc, char **argv) {
 	if (argc < 1) return usage();
 	const char *sub = argv[0];
-	if (strcmp(sub, "add") == 0) {
+	if (strcmp(sub, "--help") == 0 || strcmp(sub, "-h") == 0) {
+		return help();
+	}
+	if (strcmp(sub, "add") == 0 || strcmp(sub, "install") == 0) {
 		if (argc != 2) return usage();
 		if (sxcu_dir_add(argv[1]) != 0) return 1;
 		log_info("sxcu: added to %s", sxcu_dir_path());

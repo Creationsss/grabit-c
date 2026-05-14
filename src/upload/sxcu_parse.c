@@ -160,13 +160,22 @@ static int parse_regex_list(struct json_object *root, struct sxcu_uploader *out)
 	return 0;
 }
 
+static int parse_with_source(const char *json, const char *src,
+							 struct sxcu_uploader *out);
+
 int sxcu_parse_string(const char *json, struct sxcu_uploader *out) {
+	return parse_with_source(json, NULL, out);
+}
+
+static int parse_with_source(const char *json, const char *src,
+							 struct sxcu_uploader *out) {
+	const char *label = src ? src : "<input>";
 	if (!json || !out) return -1;
 	memset(out, 0, sizeof *out);
 
 	struct json_object *root = json_tokener_parse(json);
 	if (!root || !json_object_is_type(root, json_type_object)) {
-		log_error("sxcu: not a JSON object");
+		log_error("sxcu: %s: not a JSON object", label);
 		if (root) json_object_put(root);
 		return -1;
 	}
@@ -174,7 +183,7 @@ int sxcu_parse_string(const char *json, struct sxcu_uploader *out) {
 	out->name = grabit_json_get_string(root, "Name");
 	out->request_url = grabit_json_get_string(root, "RequestURL");
 	if (!out->request_url) {
-		log_error("sxcu: missing RequestURL");
+		log_error("sxcu: %s: missing RequestURL", label);
 		json_object_put(root);
 		sxcu_free(out);
 		return -1;
@@ -210,7 +219,7 @@ int sxcu_parse_string(const char *json, struct sxcu_uploader *out) {
 	return 0;
 
 fail:
-	log_error("sxcu: parse failed (oom?)");
+	log_error("sxcu: %s: parse failed (oom?)", label);
 	json_object_put(root);
 	sxcu_free(out);
 	return -1;
@@ -231,7 +240,7 @@ int sxcu_parse_file(const char *path, struct sxcu_uploader *out) {
 		json = buf + UTF8_BOM_LEN;
 	}
 
-	int rc = sxcu_parse_string(json, out);
+	int rc = parse_with_source(json, path, out);
 	free(buf);
 
 	if (rc == 0 && !out->name) {

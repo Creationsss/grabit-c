@@ -7,6 +7,7 @@
 #include <stdbool.h>
 
 void log_init(bool silent, bool debug);
+bool log_is_silent(void);
 
 void log_debug(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 void log_info(const char *fmt, ...) __attribute__((format(printf, 1, 2)));

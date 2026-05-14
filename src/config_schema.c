@@ -16,6 +16,8 @@ static const char *BOOL_KEYS[] = {
 	"notifications",
 	"save_captures",
 	"webp.lossless",
+	"recording.cursor",
+	"sound.enabled",
 	NULL,
 };
 
@@ -311,22 +313,12 @@ int config_set(struct config *c, const char *key, const char *value) {
 		validate_int_in_range(key, value, 1, 100) != 0) return -1;
 	if (strcmp(key, "webp.quality") == 0 &&
 		validate_int_in_range(key, value, 0, 100) != 0) return -1;
-	if (strcmp(key, "sound.enabled") == 0 &&
-		strcmp(value, "true") != 0 && strcmp(value, "false") != 0) {
-		log_error("sound.enabled must be true or false");
-		return -1;
-	}
 	if (strcmp(key, "recording.fps") == 0 &&
 		validate_int_in_range(key, value, 1, 120) != 0) return -1;
 	if (strcmp(key, "recording.crf") == 0 &&
 		validate_int_in_range(key, value, 0, 51) != 0) return -1;
 	if (strcmp(key, "recording.max_size_mb") == 0 &&
 		validate_int_in_range(key, value, 0, 100000) != 0) return -1;
-	if (strcmp(key, "recording.cursor") == 0 &&
-		strcmp(value, "true") != 0 && strcmp(value, "false") != 0) {
-		log_error("recording.cursor must be true or false");
-		return -1;
-	}
 	if (strcmp(key, "recording.preset") == 0 && !cfg_in_list(value, VALS_x264_preset)) {
 		log_error("recording.preset must be one of "
 				  "ultrafast|superfast|veryfast|faster|fast|medium|slow|slower|veryslow");
@@ -376,8 +368,11 @@ int config_set(struct config *c, const char *key, const char *value) {
 	if (strcmp(key, "services.zipline.domain") == 0) {
 		normalized = normalize_zipline_domain(value);
 		if (!normalized) {
-			log_error("oom: config_set");
+			log_error("out of memory");
 			return -1;
+		}
+		if (strcmp(normalized, value) != 0) {
+			log_info("zipline: normalized domain to %s", normalized);
 		}
 		value = normalized;
 	}
@@ -385,7 +380,7 @@ int config_set(struct config *c, const char *key, const char *value) {
 	int rc = cfg_kv_upsert(c, key, value);
 	free(normalized);
 	if (rc != 0) {
-		log_error("oom: config_set");
+		log_error("out of memory");
 		return -1;
 	}
 	return config_save(c);

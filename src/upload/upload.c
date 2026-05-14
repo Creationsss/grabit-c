@@ -158,6 +158,17 @@ static struct curl_slist *append_header(struct curl_slist *list,
 	return next ? next : list;
 }
 
+static void log_response_body(const char *body) {
+	if (!body || !body[0]) return;
+	enum { BODY_MAX = 512 };
+	size_t len = strlen(body);
+	if (len <= BODY_MAX) {
+		log_error("response: %s", body);
+		return;
+	}
+	log_error("response (truncated, %zu bytes): %.*s…", len, (int)BODY_MAX, body);
+}
+
 static void log_http_failure(long code, const char *body) {
 	switch (code) {
 	case 401:
@@ -180,7 +191,7 @@ static void log_http_failure(long code, const char *body) {
 			log_error("upload failed: no response from server");
 		else
 			log_error("upload failed (HTTP %ld)", code);
-		if (body && body[0]) log_error("response: %s", body);
+		log_response_body(body);
 		break;
 	}
 }
@@ -326,7 +337,7 @@ int upload_perform(const char *service_name, const char *file_path,
 								   : NULL;
 	if (!root || json_object_get_type(root) != json_type_object) {
 		log_error("invalid JSON response from %s", svc->name);
-		if (out->body) log_error("response: %s", out->body);
+		log_response_body(out->body);
 		if (root) json_object_put(root);
 		return -1;
 	}
@@ -336,7 +347,7 @@ int upload_perform(const char *service_name, const char *file_path,
 
 	if (!out->url) {
 		log_error("could not find %s in %s response", svc->json_path, svc->name);
-		log_error("response: %s", out->body);
+		log_response_body(out->body);
 		return -1;
 	}
 	return 0;
