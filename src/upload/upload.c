@@ -311,7 +311,8 @@ int upload_perform(const char *service_name, const char *file_path,
 	curl_easy_setopt(curl, CURLOPT_TIMEOUT, 300L);
 	curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
 
-	log_debug("POST %s (%s)", url, svc->name);
+	log_info("uploading %s to %s ...", grabit_basename(file_path), svc->name);
+	log_debug("POST %s", url);
 	CURLcode rc = curl_easy_perform(curl);
 	long http_code = 0;
 	curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);

@@ -303,6 +303,8 @@ int config_set(struct config *c, const char *key, const char *value) {
 		!valid_ocr_key(key) && !valid_sound_key(key) && !valid_edit_key(key) &&
 		!valid_jpeg_key(key) && !valid_webp_key(key)) {
 		log_error("unknown config key: %s", key);
+		const char *hint = cfg_help_suggest_key(key);
+		if (hint) log_info("did you mean: %s ?", hint);
 		return -1;
 	}
 	if (strcmp(key, "format") == 0 && !cfg_in_list(value, VALS_format)) {

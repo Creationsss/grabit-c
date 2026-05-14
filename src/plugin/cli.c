@@ -14,7 +14,7 @@
 
 static int usage(void) {
 	log_error("usage: grabit plugin <install|list|show|update|remove> [args]");
-	return 1;
+	return 2;
 }
 
 static int help(void) {
@@ -97,7 +97,7 @@ int cmd_plugin(int argc, char **argv) {
 	if (strcmp(sub, "install") == 0 || strcmp(sub, "add") == 0) {
 		if (argc != 2) {
 			log_error("usage: grabit plugin install <git-url>");
-			return 1;
+			return 2;
 		}
 		return plugin_install_git(argv[1]) == 0 ? 0 : 1;
 	}

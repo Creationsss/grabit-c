@@ -55,11 +55,11 @@ int args_parse(int argc, char **argv, struct args *out) {
 			continue;
 		}
 
-		if (strcmp(arg, "-c") == 0) {
+		if (strcmp(arg, "-c") == 0 || strcmp(arg, "--copy") == 0) {
 			if (set_action(out, ACTION_COPY, arg) != 0) return -1;
 			continue;
 		}
-		if (strcmp(arg, "-u") == 0) {
+		if (strcmp(arg, "-u") == 0 || strcmp(arg, "--upload") == 0) {
 			if (set_action(out, ACTION_UPLOAD, arg) != 0) return -1;
 			continue;
 		}
@@ -103,11 +103,13 @@ int args_parse(int argc, char **argv, struct args *out) {
 			out->no_tray = true;
 			continue;
 		}
-		if (strcmp(arg, "--silent") == 0) {
+		if (strcmp(arg, "--silent") == 0 ||
+			strcmp(arg, "--quiet") == 0 ||
+			strcmp(arg, "-q") == 0) {
 			out->silent = true;
 			continue;
 		}
-		if (strcmp(arg, "-d") == 0) {
+		if (strcmp(arg, "-d") == 0 || strcmp(arg, "--debug") == 0) {
 			out->debug = true;
 			continue;
 		}
@@ -202,6 +204,12 @@ int args_parse(int argc, char **argv, struct args *out) {
 	}
 	if (out->no_tray && out->action != ACTION_RECORD && out->action != ACTION_NONE) {
 		log_warn("--no-tray only applies to --record");
+	}
+	if (out->file && out->format) {
+		log_warn("--format is ignored when -f is used (file is uploaded as-is)");
+	}
+	if (out->file && out->filename_tpl) {
+		log_warn("--filename is ignored when -f is used");
 	}
 
 	return 0;

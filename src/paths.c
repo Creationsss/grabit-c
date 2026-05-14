@@ -38,14 +38,14 @@ const char *paths_config_dir(void) {
 		}
 		rc = grabit_xasprintf(&g_config_dir, "%s/.config/grabit", home);
 	}
-	if (rc != 0 || !g_config_dir) die("oom: paths_config_dir");
+	if (rc != 0 || !g_config_dir) die("out of memory");
 	return g_config_dir;
 }
 
 const char *paths_config_file(void) {
 	if (g_config_file) return g_config_file;
 	if (grabit_xasprintf(&g_config_file, "%s/config.toml", paths_config_dir()) != 0) {
-		die("oom: paths_config_file");
+		die("out of memory");
 	}
 	return g_config_file;
 }

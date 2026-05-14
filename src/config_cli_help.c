@@ -56,6 +56,62 @@ static const char *zl_header_example(const struct zl_hdr *h) {
 	return "";
 }
 
+static const char *const ALL_KNOWN_KEYS[] = {
+	"default_action", "notifications", "save_captures", "save_dir", "editor",
+	"filename", "filename_preset", "service", "format",
+	"recording.fps", "recording.crf", "recording.preset", "recording.tune",
+	"recording.pix_fmt", "recording.max_size_mb", "recording.cursor", "recording.ffmpeg",
+	"sound.enabled", "sound.player", "sound.file",
+	"edit.color", "edit.width",
+	"jpeg.quality", "webp.quality", "webp.lossless",
+	"ocr.tesseract",
+	"services.zipline.auth", "services.zipline.domain",
+	"services.nest.auth", "services.nest.folder",
+	"services.fakecrime.auth", "services.ez.auth",
+	"services.guns.auth", "services.pixelvault.auth",
+	NULL,
+};
+
+static size_t edit_distance(const char *a, const char *b) {
+	size_t la = strlen(a), lb = strlen(b);
+	if (la > 64 || lb > 64) return 999;
+	size_t prev[66], curr[66];
+	for (size_t j = 0; j <= lb; j++) prev[j] = j;
+	for (size_t i = 1; i <= la; i++) {
+		curr[0] = i;
+		for (size_t j = 1; j <= lb; j++) {
+			size_t cost = (a[i - 1] == b[j - 1]) ? 0 : 1;
+			size_t del = prev[j] + 1;
+			size_t ins = curr[j - 1] + 1;
+			size_t sub = prev[j - 1] + cost;
+			size_t m = del < ins ? del : ins;
+			if (sub < m) m = sub;
+			curr[j] = m;
+		}
+		for (size_t j = 0; j <= lb; j++) prev[j] = curr[j];
+	}
+	return prev[lb];
+}
+
+const char *cfg_help_suggest_key(const char *input) {
+	if (!input || !*input) return NULL;
+	size_t in_len = strlen(input);
+	const char *best = NULL;
+	size_t best_dist = (size_t)-1;
+	for (size_t i = 0; ALL_KNOWN_KEYS[i]; i++) {
+		const char *k = ALL_KNOWN_KEYS[i];
+		size_t d = edit_distance(input, k);
+		if (d < best_dist) {
+			best_dist = d;
+			best = k;
+		}
+	}
+	if (!best) return NULL;
+	size_t max_allowed = in_len / 3 + 1;
+	if (max_allowed < 2) max_allowed = 2;
+	return best_dist <= max_allowed ? best : NULL;
+}
+
 int cfg_help_example_for_key(const char *key, const char **example_out, const char **def_out) {
 	*def_out = NULL;
 	for (size_t i = 0; i < TOP_EXAMPLES_N; i++) {

@@ -43,8 +43,10 @@ int cmd_set(int argc, char **argv) {
 		const char *ex = NULL, *def = NULL;
 		if (cfg_help_example_for_key(argv[0], &ex, &def) != 0) {
 			log_error("unknown key: %s", argv[0]);
+			const char *hint = cfg_help_suggest_key(argv[0]);
+			if (hint) log_info("did you mean: %s ?", hint);
 			log_info("run `grabit set` to see all keys");
-			return 1;
+			return 2;
 		}
 		printf("%s = ", argv[0]);
 		bool starred = cfg_help_print_example(ex, def);
@@ -66,7 +68,7 @@ int cmd_set(int argc, char **argv) {
 	}
 	if (argc != 2) {
 		log_error("usage: grabit set <key> <value>");
-		return 1;
+		return 2;
 	}
 	struct config c;
 	if (config_load(&c) != 0) return 1;
@@ -84,7 +86,7 @@ int cmd_get(int argc, char **argv) {
 	}
 	if (argc > 1) {
 		log_error("usage: grabit get [<key>]");
-		return 1;
+		return 2;
 	}
 	struct config c;
 	if (config_load(&c) != 0) return 1;
@@ -115,7 +117,7 @@ int cmd_unset(int argc, char **argv) {
 	}
 	if (argc != 1) {
 		log_error("usage: grabit unset <key>");
-		return 1;
+		return 2;
 	}
 	struct config c;
 	if (config_load(&c) != 0) return 1;

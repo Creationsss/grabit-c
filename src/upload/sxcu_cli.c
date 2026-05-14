@@ -13,7 +13,7 @@
 
 static int usage(void) {
 	log_error("usage: grabit sxcu <add|list|remove|show> [args]");
-	return 1;
+	return 2;
 }
 
 static int help(void) {

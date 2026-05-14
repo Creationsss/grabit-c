@@ -11,6 +11,8 @@ struct grabit_wl_state;
 struct rect;
 struct grabit_save_opts;
 
+#define GRABIT_CAPTURE_CANCELLED (-2)
+
 int grabit_freeze_capture(struct grabit_wl_state *s, const char *path,
 						  const struct grabit_save_opts *save_opts,
 						  struct rect *out_rect, bool annotate,

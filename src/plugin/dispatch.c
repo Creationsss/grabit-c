@@ -104,7 +104,11 @@ int plugin_dispatch_pin(const char *name, int argc, char **argv) {
 	int status = 0;
 	(void)grabit_waitpid_intr(pid, &status);
 	if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
-		if (out.data) fputs(out.data, stderr);
+		if (out.data && out.data[0]) {
+			fprintf(stderr, "--- plugin %s stdout ---\n%s", name, out.data);
+			if (out.len > 0 && out.data[out.len - 1] != '\n') fputc('\n', stderr);
+			fputs("--- end ---\n", stderr);
+		}
 		grabit_buf_free(&out);
 		return WIFEXITED(status) ? WEXITSTATUS(status) : 1;
 	}

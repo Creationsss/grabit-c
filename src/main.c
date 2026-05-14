@@ -74,8 +74,8 @@ static int print_help(void) {
 		"Usage: grabit [options]\n"
 		"\n"
 		"Capture & output:\n"
-		"  -c                Copy screenshot to clipboard\n"
-		"  -u                Upload screenshot to default service\n"
+		"  -c, --copy        Copy screenshot to clipboard\n"
+		"  -u, --upload      Upload screenshot to default service\n"
 		"  --<service>       Upload to a specific service\n"
 		"                    (zipline|nest|fakecrime|ez|guns|pixelvault)\n"
 		"  -o, --output, --save\n"
@@ -91,8 +91,8 @@ static int print_help(void) {
 		"  --release         Restore pinned screenshots to click-through\n"
 		"  --close-all       Dismiss every pinned screenshot\n"
 		"  -e, --edit        Open the captured file in an editor first\n"
-		"  --silent          Suppress notifications and sound\n"
-		"  -d                Enable debug logging to stderr\n"
+		"  --silent, -q, --quiet  Suppress notifications and sound\n"
+		"  -d, --debug       Enable debug logging to stderr\n"
 		"  --filename <tpl>  Per-run filename template\n"
 		"  --format <fmt>    Output format: png|jpeg|webp (default png)\n"
 		"  --                End-of-options; following arg is treated as -f <file>\n"
@@ -131,8 +131,20 @@ static int print_help(void) {
 		"With no action and no `default_action` set, grabit prints this help.\n"
 		"Set one with: grabit set default_action upload|copy|save|pin\n"
 		"\n"
+		"Examples:\n"
+		"  grabit -c                       region screenshot to clipboard\n"
+		"  grabit -u                       upload using `service` config\n"
+		"  grabit --zipline                upload to a specific service\n"
+		"  grabit -o > shot.txt            save and print path\n"
+		"  grabit -e -u                    annotate, then upload\n"
+		"  grabit --record                 start recording (re-run to stop)\n"
+		"  grabit --pin                    pin a region to the desktop\n"
+		"  grabit -f shot.png --zipline    upload an existing file\n"
+		"  grabit --format jpeg -o         save as JPEG instead of PNG\n"
+		"  grabit help <subcommand>        help for set/get/unset/sxcu/plugin\n"
+		"\n"
 		"Misc:\n"
-		"  --version         Print version and exit\n"
+		"  -V, --version     Print version and exit\n"
 		"  -h, --help        Print this help and exit\n"
 		"\n"
 		"Environment:\n"
@@ -239,11 +251,13 @@ static char *capture_to_file(const struct args *a, struct config *cfg,
 		unlink(path);
 		clear_tmpfile();
 		free(path);
-		notify_send(&(struct notify_opts){
-			.summary = "grabit: capture failed",
-			.body = "selection cancelled or did not intersect any output",
-			.force = true,
-		});
+		if (rc != GRABIT_CAPTURE_CANCELLED) {
+			notify_send(&(struct notify_opts){
+				.summary = "grabit: capture failed",
+				.body = "see terminal for details",
+				.force = true,
+			});
+		}
 		return NULL;
 	}
 
@@ -676,7 +690,7 @@ int main(int argc, char **argv) {
 
 	if (argc >= 2) {
 		const char *first = argv[1];
-		if (strcmp(first, "--version") == 0) return print_version();
+		if (strcmp(first, "--version") == 0 || strcmp(first, "-V") == 0) return print_version();
 		if (strcmp(first, "--help") == 0 || strcmp(first, "-h") == 0) return print_help();
 		if (strcmp(first, "help") == 0) {
 			if (argc < 3) return print_help();
@@ -709,6 +723,6 @@ int main(int argc, char **argv) {
 	}
 
 	struct args a;
-	if (args_parse(argc, argv, &a) != 0) return 1;
+	if (args_parse(argc, argv, &a) != 0) return 2;
 	return run(&a);
 }

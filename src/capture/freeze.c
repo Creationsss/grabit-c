@@ -42,10 +42,12 @@ int grabit_freeze_capture(struct grabit_wl_state *s, const char *path,
 	if (region_select(s, frozen, annotate, &r, annotate ? &annos : NULL,
 					  inout_color, inout_width, out_choices_dirty) != 0) {
 		log_info("region selection cancelled");
+		rc = GRABIT_CAPTURE_CANCELLED;
 		goto cleanup;
 	}
 	if (r.w <= 0 || r.h <= 0) {
 		log_error("empty selection");
+		rc = GRABIT_CAPTURE_CANCELLED;
 		goto cleanup;
 	}
 
@@ -62,7 +64,7 @@ int grabit_freeze_capture(struct grabit_wl_state *s, const char *path,
 
 	slices = calloc(s->n_outputs, sizeof *slices);
 	if (!slices) {
-		log_error("oom: composite slices");
+		log_error("out of memory");
 		goto cleanup;
 	}
 	size_t n_slices = 0;

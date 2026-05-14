@@ -33,5 +33,6 @@ bool cfg_is_known_service(const char *s);
 void cfg_help_print_all_keys(void);
 int cfg_help_example_for_key(const char *key, const char **example_out, const char **def_out);
 bool cfg_help_print_example(const char *example, const char *def);
+const char *cfg_help_suggest_key(const char *input);
 
 #endif
